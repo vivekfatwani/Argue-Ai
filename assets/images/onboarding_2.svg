@@ -1,0 +1,27 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="150" cy="150" r="120" fill="#E8F0FE" />
+  
+  <!-- Speech bubbles for real-time debate -->
+  <path d="M80 120C80 111.716 86.7157 105 95 105H145C153.284 105 160 111.716 160 120V150C160 158.284 153.284 165 145 165H115L95 185V165H95C86.7157 165 80 158.284 80 150V120Z" fill="#2196F3" />
+  
+  <path d="M140 170C140 161.716 146.716 155 155 155H205C213.284 155 220 161.716 220 170V200C220 208.284 213.284 215 205 215H185L165 235V215H155C146.716 215 140 208.284 140 200V170Z" fill="#673AB7" />
+  
+  <!-- Text lines representing conversation -->
+  <rect x="95" y="125" width="50" height="5" rx="2.5" fill="white" />
+  <rect x="95" y="135" width="40" height="5" rx="2.5" fill="white" />
+  <rect x="95" y="145" width="30" height="5" rx="2.5" fill="white" />
+  
+  <rect x="155" y="175" width="50" height="5" rx="2.5" fill="white" />
+  <rect x="155" y="185" width="40" height="5" rx="2.5" fill="white" />
+  <rect x="155" y="195" width="30" height="5" rx="2.5" fill="white" />
+  
+  <!-- Real-time indicator dots -->
+  <circle cx="75" cy="200" r="5" fill="#4CAF50" />
+  <circle cx="90" cy="200" r="5" fill="#FF9800" opacity="0.7" />
+  <circle cx="105" cy="200" r="5" fill="#F44336" opacity="0.4" />
+  
+  <!-- Clock symbol for real-time -->
+  <circle cx="225" cy="90" r="20" fill="#673AB7" opacity="0.7" />
+  <path d="M225 75V90H235" stroke="white" stroke-width="3" stroke-linecap="round" />
+</svg>

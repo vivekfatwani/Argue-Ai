@@ -1,0 +1,30 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="150" cy="150" r="120" fill="#E8F0FE" />
+  
+  <!-- Clipboard/Feedback form -->
+  <rect x="80" y="60" width="140" height="180" rx="10" fill="white" stroke="#673AB7" stroke-width="3" />
+  <rect x="95" y="80" width="110" height="10" rx="5" fill="#E1BEE7" />
+  <rect x="95" y="100" width="60" height="10" rx="5" fill="#E1BEE7" />
+  
+  <!-- Feedback categories -->
+  <rect x="95" y="130" width="110" height="20" rx="5" fill="#2196F3" opacity="0.7" />
+  <text x="150" y="144" font-family="Arial" font-size="12" fill="white" text-anchor="middle">Clarity</text>
+  
+  <rect x="95" y="160" width="110" height="20" rx="5" fill="#4CAF50" opacity="0.7" />
+  <text x="150" y="174" font-family="Arial" font-size="12" fill="white" text-anchor="middle">Logic</text>
+  
+  <rect x="95" y="190" width="110" height="20" rx="5" fill="#FF9800" opacity="0.7" />
+  <text x="150" y="204" font-family="Arial" font-size="12" fill="white" text-anchor="middle">Rebuttals</text>
+  
+  <rect x="95" y="220" width="110" height="20" rx="5" fill="#F44336" opacity="0.7" />
+  <text x="150" y="234" font-family="Arial" font-size="12" fill="white" text-anchor="middle">Persuasiveness</text>
+  
+  <!-- Check mark -->
+  <circle cx="230" cy="80" r="20" fill="#4CAF50" opacity="0.8" />
+  <path d="M220 80L228 88L240 70" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Personalization icon -->
+  <circle cx="70" cy="70" r="15" fill="#673AB7" opacity="0.7" />
+  <path d="M70 65V75M65 70H75" stroke="white" stroke-width="2" stroke-linecap="round" />
+</svg>

@@ -1,0 +1,23 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="150" cy="150" r="120" fill="#E8F0FE" />
+  
+  <!-- Logo stylized "A" for ArguMentor -->
+  <path d="M110 210L150 90L190 210H160L150 180L140 210H110Z" fill="#673AB7" />
+  
+  <!-- Debate bubbles -->
+  <circle cx="90" cy="130" r="25" fill="#9575CD" />
+  <circle cx="210" cy="130" r="25" fill="#7E57C2" />
+  
+  <!-- Connection lines -->
+  <path d="M115 130H185" stroke="#7E57C2" stroke-width="4" stroke-dasharray="6 4" />
+  
+  <!-- Small decorative circles -->
+  <circle cx="70" cy="180" r="10" fill="#9575CD" opacity="0.6" />
+  <circle cx="230" cy="180" r="10" fill="#7E57C2" opacity="0.6" />
+  <circle cx="150" cy="70" r="15" fill="#673AB7" opacity="0.4" />
+  
+  <!-- Abstract lines suggesting communication -->
+  <path d="M60 120C80 100 100 110 120 100" stroke="#9575CD" stroke-width="3" />
+  <path d="M180 100C200 110 220 100 240 120" stroke="#7E57C2" stroke-width="3" />
+</svg>

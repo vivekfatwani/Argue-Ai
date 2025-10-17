@@ -1,0 +1,60 @@
+# Dart/Pub related
+.dart_tool/
+.packages
+.pub-cache/
+build/
+*.dart.js
+*.info.json
+*.js
+*.js.map
+*.dill
+
+# IDE & Editor folders
+.idea/
+*.iml
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Flutter-specific
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+android/.gradle
+android/captures/
+android/.idea
+android/local.properties
+android/.settings/
+
+# iOS/macOS-specific
+ios/Flutter/Generated.xcconfig
+ios/Runner.xcworkspace/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/.generated/
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/FlutterMacOS.framework
+
+# Linux/Windows/Web
+linux/flutter/
+windows/flutter/
+web/flutter.js
+web/main.dart.js
+web/main.dart.js.map
+
+# Logs
+*.log
+
+# Output APKs or builds (track manually via Git LFS or GitHub releases instead)
+*.apk
+*.aab
+
+# Misc
+.env
+*.swp
+

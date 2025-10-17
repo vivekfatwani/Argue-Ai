@@ -1,0 +1,40 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="150" cy="150" r="120" fill="#E8F0FE" />
+  
+  <!-- Skill development roadmap -->
+  <path d="M60 200C60 200 90 140 150 140C210 140 240 80 240 80" stroke="#673AB7" stroke-width="6" stroke-linecap="round" />
+  
+  <!-- Progress points/milestones on the roadmap -->
+  <circle cx="60" cy="200" r="15" fill="#673AB7" />
+  <circle cx="100" cy="170" r="12" fill="#9575CD" />
+  <circle cx="150" cy="140" r="15" fill="#673AB7" />
+  <circle cx="200" cy="110" r="12" fill="#9575CD" />
+  <circle cx="240" cy="80" r="15" fill="#673AB7" />
+  
+  <!-- Skill icons around the path -->
+  <!-- Book icon -->
+  <rect x="85" cy="145" width="30" height="25" rx="3" fill="#2196F3" opacity="0.8" />
+  <path d="M100 137V153" stroke="white" stroke-width="2" />
+  <path d="M92 145H108" stroke="white" stroke-width="2" />
+  
+  <!-- Chart icon -->
+  <rect x="135" cy="115" width="30" height="25" rx="3" fill="#4CAF50" opacity="0.8" />
+  <path d="M140 130L145 120L150 125L155 115" stroke="white" stroke-width="2" stroke-linecap="round" />
+  
+  <!-- Certificate icon -->
+  <rect x="185" cy="85" width="30" height="25" rx="3" fill="#FF9800" opacity="0.8" />
+  <path d="M195 95H205" stroke="white" stroke-width="2" />
+  <path d="M195 100H205" stroke="white" stroke-width="2" />
+  <path d="M200 105L198 110L200 108L202 110L200 105Z" fill="white" />
+  
+  <!-- Decorative elements -->
+  <circle cx="70" cy="100" r="8" fill="#9575CD" opacity="0.5" />
+  <circle cx="230" cy="190" r="8" fill="#9575CD" opacity="0.5" />
+  <circle cx="150" cy="220" r="8" fill="#9575CD" opacity="0.5" />
+  
+  <!-- Little stars representing achievements -->
+  <path d="M80 80L82 85L87 85L83 88L85 93L80 90L75 93L77 88L73 85L78 85L80 80Z" fill="#FFC107" />
+  <path d="M220 200L222 205L227 205L223 208L225 213L220 210L215 213L217 208L213 205L218 205L220 200Z" fill="#FFC107" />
+  <path d="M250 140L252 145L257 145L253 148L255 153L250 150L245 153L247 148L243 145L248 145L250 140Z" fill="#FFC107" />
+</svg>

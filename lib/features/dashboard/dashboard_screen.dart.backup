@@ -1,0 +1,1668 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants.dart';
+import '../../core/providers/user_provider.dart';
+import '../../core/providers/debate_provider.dart';
+import '../../core/providers/feedback_provider.dart';
+import '../../core/providers/theme_provider.dart';
+import '../../core/providers/audio_provider.dart';
+import '../../core/models/debate_model.dart';
+import '../../core/models/feedback_model.dart';
+import '../../core/utils.dart';
+import '../debate/debate_topic_selector.dart';
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({Key? key}) : super(key: key);
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0;
+  
+  final List<Widget> _pages = [
+    const HomeTab(),
+    const HistoryTab(),
+    const RoadmapTab(),
+    const ProfileTab(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ArguMentor'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              // Notification functionality would go here
+            },
+          ),
+        ],
+      ),
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'History',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'Roadmap',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HomeTab extends StatelessWidget {
+  const HomeTab({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final user = userProvider.user;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    // Calculate user stats
+    final completedDebates = user?.completedResources.length ?? 0;
+    final userPoints = user?.points ?? 0;
+    final skillLevel = _calculateSkillLevel(user?.skills);
+    
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Hero section with user welcome and stats
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.primary,
+                  colorScheme.primaryContainer,
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Colors.white.withOpacity(0.9),
+                          child: Text(
+                            user?.name.isNotEmpty == true
+                                ? user!.name.substring(0, 1).toUpperCase()
+                                : 'D',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome back,',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                              Text(
+                                user?.name ?? 'Debater',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildBadge(userPoints),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Stats cards
+                    Row(
+                      children: [
+                        _buildStatCard(
+                          context,
+                          '$completedDebates',
+                          'Debates',
+                          Icons.history,
+                        ),
+                        _buildStatCard(
+                          context,
+                          '$userPoints',
+                          'Points',
+                          Icons.stars,
+                        ),
+                        _buildStatCard(
+                          context,
+                          skillLevel,
+                          'Level',
+                          Icons.trending_up,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Quick actions
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Quick Actions',
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            Icon(
+                              Icons.bolt,
+                              color: colorScheme.primary,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildActionButton(
+                                context,
+                                'Text Debate',
+                                Icons.chat_bubble_outline,
+                                colorScheme.primary,
+                                () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                    ),
+                                    builder: (context) => const DebateTopicSelector(mode: 'text'),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildActionButton(
+                                context,
+                                'Voice Debate',
+                                Icons.mic_none,
+                                colorScheme.secondary,
+                                () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                    ),
+                                    builder: (context) => const DebateTopicSelector(mode: 'voice'),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Skills section with improved visualization
+                Text(
+                  'Your Debate Skills',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildSkillsCard(context, user?.skills),
+                const SizedBox(height: 24),
+                
+                // Recent activity section with improved cards
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Recent Activity',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // Navigate to history tab
+                        final dashboardState = context.findAncestorStateOfType<_DashboardScreenState>();
+                        if (dashboardState != null) {
+                          dashboardState._onItemTapped(1); // History tab index
+                        }
+                      },
+                      child: const Text('View All'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildRecentActivityCard(context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Helper method to calculate skill level
+  String _calculateSkillLevel(Map<String, double>? skills) {
+    if (skills == null || skills.isEmpty) {
+      return 'Novice';
+    }
+    
+    final avgSkill = skills.values.reduce((a, b) => a + b) / skills.length;
+    
+    if (avgSkill >= 0.8) return 'Expert';
+    if (avgSkill >= 0.6) return 'Advanced';
+    if (avgSkill >= 0.4) return 'Intermediate';
+    if (avgSkill >= 0.2) return 'Beginner';
+    return 'Novice';
+  }
+  
+  // Stat card for the hero section
+  Widget _buildStatCard(BuildContext context, String value, String label, IconData icon) {
+    return Expanded(
+      child: Card(
+        elevation: 0,
+        color: Colors.white.withOpacity(0.15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.white),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Modern action button
+  Widget _buildActionButton(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebateCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    String description,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillsCard(BuildContext context, Map<String, double>? skills) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+  
+    final defaultSkills = {
+      'Clarity': 0.0,
+      'Logic': 0.0,
+      'Rebuttal Quality': 0.0,
+      'Persuasiveness': 0.0,
+    };
+  
+    final userSkills = skills?.map(
+      (key, value) => MapEntry(key.substring(0, 1).toUpperCase() + key.substring(1), value),
+    ) ?? defaultSkills;
+
+    // Create a list of skills for visualization
+    final skillsList = userSkills.entries.toList();
+    final hasSkills = skillsList.any((entry) => entry.value > 0.0);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hasSkills) ...[  
+              // Skill visualization section
+              Container(
+                height: 180,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    // Skill chart visualization
+                    Expanded(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Background grid lines
+                          CustomPaint(
+                            size: const Size(double.infinity, double.infinity),
+                            painter: SkillChartPainter(
+                              skills: skillsList,
+                              primaryColor: colorScheme.primary,
+                            ),
+                          ),
+                          
+                          // Skill labels
+                          ...List.generate(skillsList.length, (index) {
+                            final skill = skillsList[index];
+                            final angle = 2 * 3.14159 * index / skillsList.length;
+                            final radius = 70; // Fixed radius for labels
+                            
+                            final x = radius * cos(angle);
+                            final y = radius * sin(angle);
+                            
+                            return Positioned(
+                              left: 70 + x - 40, // Center text around point
+                              top: 70 + y - 10,
+                              child: SizedBox(
+                                width: 80,
+                                child: Text(
+                                  skill.key,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            
+            // Skill bars
+            ...skillsList.map((entry) => _buildSkillBar(
+              context,
+              entry.key,
+              entry.value,
+            )),
+            
+            const SizedBox(height: 16),
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () => context.go(AppConstants.routeRoadmap),
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('View Learning Roadmap'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Custom painter for the skill chart
+  class SkillChartPainter extends CustomPainter {
+    final List<MapEntry<String, double>> skills;
+    final Color primaryColor;
+    
+    SkillChartPainter({required this.skills, required this.primaryColor});
+    
+    @override
+    void paint(Canvas canvas, Size size) {
+      final center = Offset(size.width / 2, size.height / 2);
+      final radius = size.width < size.height ? size.width / 2 - 10 : size.height / 2 - 10;
+      
+      // Draw background circles
+      final backgroundPaint = Paint()
+        ..color = primaryColor.withOpacity(0.1)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+        
+      for (int i = 1; i <= 4; i++) {
+        final circleRadius = radius * i / 4;
+        canvas.drawCircle(center, circleRadius, backgroundPaint);
+      }
+      
+      // Draw axes
+      for (int i = 0; i < skills.length; i++) {
+        final angle = 2 * 3.14159 * i / skills.length;
+        final dx = radius * cos(angle);
+        final dy = radius * sin(angle);
+        
+        canvas.drawLine(
+          center,
+          Offset(center.dx + dx, center.dy + dy),
+          backgroundPaint,
+        );
+      }
+      
+      // Draw skill polygon
+      if (skills.isNotEmpty) {
+        final skillPaint = Paint()
+          ..color = primaryColor.withOpacity(0.7)
+          ..style = PaintingStyle.fill;
+        
+        final path = Path();
+        
+        for (int i = 0; i < skills.length; i++) {
+          final angle = 2 * 3.14159 * i / skills.length;
+          final value = skills[i].value;
+          final dx = radius * value * cos(angle);
+          final dy = radius * value * sin(angle);
+          
+          if (i == 0) {
+            path.moveTo(center.dx + dx, center.dy + dy);
+          } else {
+            path.lineTo(center.dx + dx, center.dy + dy);
+          }
+        }
+        
+        path.close();
+        canvas.drawPath(path, skillPaint);
+        
+        // Draw skill points
+        final pointPaint = Paint()
+          ..color = primaryColor
+          ..style = PaintingStyle.fill;
+        
+        for (int i = 0; i < skills.length; i++) {
+          final angle = 2 * 3.14159 * i / skills.length;
+          final value = skills[i].value;
+          final dx = radius * value * cos(angle);
+          final dy = radius * value * sin(angle);
+          
+          canvas.drawCircle(Offset(center.dx + dx, center.dy + dy), 4, pointPaint);
+        }
+      }
+    }
+    
+    @override
+    bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  }
+
+  Widget _buildSkillBar(BuildContext context, String skill, double value) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    // Determine the color based on the skill level
+    Color skillColor;
+    if (value >= 0.8) {
+      skillColor = Colors.green;
+    } else if (value >= 0.6) {
+      skillColor = Colors.lightGreen;
+    } else if (value >= 0.4) {
+      skillColor = Colors.amber;
+    } else if (value >= 0.2) {
+      skillColor = Colors.orange;
+    } else {
+      skillColor = Colors.redAccent;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                skill,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: skillColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${(value * 100).toInt()}%',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: skillColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Stack(
+            children: [
+              // Background bar
+              Container(
+                height: 8,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              // Progress bar
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    height: 8,
+                    width: constraints.maxWidth * value,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          skillColor.withOpacity(0.7),
+                          skillColor,
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: skillColor.withOpacity(0.3),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivityCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+  
+    // Activity data - this would typically be populated from actual user data
+    final activities = [
+      {
+        'type': 'debate',
+        'title': 'Completed a debate on "Climate Change"',
+        'time': '1 day ago',
+        'icon': Icons.chat_bubble,
+        'color': colorScheme.primary,
+        'score': 85,
+      },
+      {
+        'type': 'achievement',
+        'title': 'Earned the "Logic Master" badge',
+        'time': '2 days ago',
+        'icon': Icons.emoji_events,
+        'color': Colors.amber,
+      },
+      {
+        'type': 'learning',
+        'title': 'Completed "Effective Rebuttals" resource',
+        'time': '3 days ago',
+        'icon': Icons.menu_book,
+        'color': colorScheme.tertiary,
+      },
+    ];
+  
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Column(
+          children: [
+            for (int i = 0; i < activities.length; i++)
+              _buildActivityItem(context, activities[i], i < activities.length - 1),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(BuildContext context, Map<String, dynamic> activity, bool showDivider) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final color = activity['color'] as Color;
+  
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Activity icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    activity['icon'] as IconData,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              
+              // Activity content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity['title'] as String,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: theme.textTheme.bodySmall?.color,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          activity['time'] as String,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        
+                        // Show score if it's a debate
+                        if (activity['type'] == 'debate') ...[  
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getScoreColor(activity['score'] as int).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.analytics,
+                                  size: 14,
+                                  color: _getScoreColor(activity['score'] as int),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${activity['score']}%',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: _getScoreColor(activity['score'] as int),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Divider between items
+        if (showDivider)
+          Padding(
+            padding: const EdgeInsets.only(left: 64.0),
+            child: Divider(height: 1, thickness: 1, color: theme.dividerColor.withOpacity(0.5)),
+          ),
+      ],
+    );
+
+  Color _getScoreColor(int score) {
+    if (score >= 80) return Colors.green;
+    if (score >= 60) return Colors.amber;
+    return Colors.redAccent;
+  }
+}
+
+class HistoryTab extends StatefulWidget {
+  const HistoryTab({Key? key}) : super(key: key);
+
+  @override
+  State<HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<HistoryTab> {
+  List<Debate> _debates = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDebateHistory();
+  }
+
+  Future<void> _loadDebateHistory() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final debateProvider = Provider.of<DebateProvider>(context, listen: false);
+    final debates = await debateProvider.getDebateHistory();
+    
+    // Sort debates by start time (newest first)
+    debates.sort((a, b) => b.startTime.compareTo(a.startTime));
+
+    if (mounted) {
+      setState(() {
+        _debates = debates;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _debates.isEmpty
+            ? _buildEmptyState()
+            : _buildDebateList();
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.history, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(
+            'No debate history yet',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a debate to see your history here',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => _onItemTapped(0), // Switch to home tab
+            child: const Text('Start a Debate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onItemTapped(int index) {
+    final dashboardState = context.findAncestorStateOfType<_DashboardScreenState>();
+    if (dashboardState != null) {
+      dashboardState._onItemTapped(index);
+    }
+  }
+
+  Widget _buildDebateList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16.0),
+      itemCount: _debates.length,
+      itemBuilder: (context, index) {
+        final debate = _debates[index];
+        return _buildDebateCard(debate);
+      },
+    );
+  }
+
+  Widget _buildDebateCard(Debate debate) {
+    final formattedDate = Utils.formatDate(debate.startTime);
+    final duration = debate.duration;
+    final durationText = duration.inMinutes > 0
+        ? '${duration.inMinutes} min'
+        : '${duration.inSeconds} sec';
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      child: InkWell(
+        onTap: () {
+          if (debate.isCompleted) {
+            context.go(AppConstants.routeFeedback, extra: debate.id);
+          } else {
+            // For incomplete debates, we could offer to resume them
+            // For now, just show feedback if available
+            if (debate.feedback != null) {
+              context.go(AppConstants.routeFeedback, extra: debate.id);
+            }
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    debate.mode == DebateMode.text ? Icons.chat : Icons.mic,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    debate.mode == DebateMode.text ? 'Text Debate' : 'Voice Debate',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    formattedDate,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                debate.topic,
+                style: Theme.of(context).textTheme.titleLarge,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildInfoChip(
+                    context,
+                    '${debate.messageCount} messages',
+                    Icons.message,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildInfoChip(
+                    context,
+                    durationText,
+                    Icons.timer,
+                  ),
+                  const Spacer(),
+                  if (debate.isCompleted)
+                    _buildScoreBadge(debate.feedback),
+                ],
+              ),
+              if (debate.isCompleted && debate.feedback != null)
+                _buildSkillBars(debate.feedback!),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(BuildContext context, String label, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreBadge(Map<String, double>? feedback) {
+    if (feedback == null) return const SizedBox.shrink();
+    
+    // Calculate average score
+    double totalScore = 0;
+    feedback.forEach((_, value) => totalScore += value);
+    final averageScore = totalScore / feedback.length;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getScoreColor(averageScore),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        '${(averageScore * 100).toStringAsFixed(0)}%',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillBars(Map<String, double> feedback) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: feedback.entries.map((entry) {
+          final skill = entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1);
+          final value = entry.value;
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4.0),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    skill,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: value,
+                    backgroundColor: Colors.grey[300],
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(4),
+                    color: _getScoreColor(value),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(value * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Color _getScoreColor(double score) {
+    if (score >= 0.8) return Colors.green;
+    if (score >= 0.6) return Colors.lightGreen;
+    if (score >= 0.4) return Colors.orange;
+    return Colors.red;
+  }
+}
+
+class RoadmapTab extends StatefulWidget {
+  const RoadmapTab({Key? key}) : super(key: key);
+
+  @override
+  State<RoadmapTab> createState() => _RoadmapTabState();
+}
+
+class _RoadmapTabState extends State<RoadmapTab> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: AppConstants.skillCategories.length, vsync: this);
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: AppConstants.skillCategories.map((skill) => Tab(text: skill)).toList(),
+        ),
+        Expanded(
+          child: Consumer2<FeedbackProvider, UserProvider>(
+            builder: (context, feedbackProvider, userProvider, child) {
+              final isLoading = feedbackProvider.isLoading;
+              
+              if (isLoading) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+              
+              return TabBarView(
+                controller: _tabController,
+                children: AppConstants.skillCategories.map((skill) {
+                  final skillKey = skill.toLowerCase().replaceAll(' ', '');
+                  final resources = feedbackProvider.getResourcesBySkill(skillKey);
+                  
+                  return _buildResourceList(
+                    context,
+                    skill,
+                    resources,
+                    userProvider,
+                    feedbackProvider,
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResourceList(
+    BuildContext context,
+    String skill,
+    List<LearningResource> resources,
+    UserProvider userProvider,
+    FeedbackProvider feedbackProvider,
+  ) {
+    if (resources.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.info_outline, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              'No resources available for $skill yet',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Complete more debates to get personalized recommendations',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+    
+    final user = userProvider.user;
+    final completedResources = user?.completedResources ?? [];
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(16.0),
+      itemCount: resources.length,
+      itemBuilder: (context, index) {
+        final resource = resources[index];
+        final isCompleted = completedResources.contains(resource.id) || resource.isCompleted;
+        
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: _buildResourceTypeIcon(resource.type),
+                title: Text(
+                  resource.title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    decoration: isCompleted ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                subtitle: Text(resource.type.substring(0, 1).toUpperCase() + resource.type.substring(1)),
+                trailing: isCompleted
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(resource.description),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        ...resource.targetSkills.map((skill) => Chip(
+                          label: Text(
+                            skill.substring(0, 1).toUpperCase() + skill.substring(1),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                          padding: const EdgeInsets.all(4),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        )).toList(),
+                        const Spacer(),
+                        if (!isCompleted)
+                          ElevatedButton(
+                            onPressed: () async {
+                              await userProvider.markResourceCompleted(resource.id);
+                              await feedbackProvider.markResourceCompleted(resource.id);
+                              await userProvider.addPoints(AppConstants.pointsPerResourceCompleted);
+                              
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${resource.title} marked as completed'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Text('Mark Complete'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResourceTypeIcon(String type) {
+    IconData iconData;
+    Color color;
+    
+    switch (type.toLowerCase()) {
+      case 'video':
+        iconData = Icons.video_library;
+        color = Colors.red;
+        break;
+      case 'article':
+        iconData = Icons.article;
+        color = Colors.blue;
+        break;
+      case 'exercise':
+        iconData = Icons.fitness_center;
+        color = Colors.orange;
+        break;
+      default:
+        iconData = Icons.book;
+        color = Colors.purple;
+    }
+    
+    return CircleAvatar(
+      backgroundColor: color.withOpacity(0.2),
+      child: Icon(iconData, color: color),
+    );
+  }
+}
+
+class ProfileTab extends StatefulWidget {
+  const ProfileTab({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<UserProvider>(
+      builder: (context, userProvider, child) {
+        final user = userProvider.user;
+        
+        if (user == null) {
+          return const Center(
+            child: Text('User not found'),
+          );
+        }
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile header
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: Text(
+                          user.name.isNotEmpty
+                              ? user.name[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.name,
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            Text(
+                              user.email,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildBadge(user.points),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Stats section
+              Text(
+                'Your Stats',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildStatRow(
+                        context,
+                        'Total Points',
+                        user.points.toString(),
+                        Icons.stars,
+                      ),
+                      const Divider(),
+                      _buildStatRow(
+                        context,
+                        'Member Since',
+                        Utils.formatDate(user.createdAt),
+                        Icons.calendar_today,
+                      ),
+                      const Divider(),
+                      _buildStatRow(
+                        context,
+                        'Completed Resources',
+                        user.completedResources.length.toString(),
+                        Icons.book,
+                      ),
+                      const Divider(),
+                      _buildStatRow(
+                        context,
+                        'Debates Completed',
+                        (user.completedResources.length / 2).round().toString(),
+                        Icons.chat,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Skills section
+              Text(
+                'Your Skills',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      if (user.skills != null && user.skills!.isNotEmpty)
+                        ...user.skills!.entries.map((entry) {
+                          final skill = entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1);
+                          final value = entry.value;
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(skill),
+                                    Text('${(value * 100).toStringAsFixed(0)}%'),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                LinearProgressIndicator(
+                                  value: value,
+                                  backgroundColor: Colors.grey[300],
+                                  minHeight: 8,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList()
+                      else
+                        const Text('Complete debates to see your skill ratings'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Settings section
+              Text(
+                'Settings',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Column(
+                  children: [
+                    _buildThemeToggle(context),
+                    _buildVoiceSettings(context),
+                    ListTile(
+                      leading: const Icon(Icons.help_outline),
+                      title: const Text('Help & Support'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        // Navigate to help screen
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.description_outlined),
+                      title: const Text('Terms of Service'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        // Navigate to terms of service screen
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBadge(int points) {
+    final badgeLevel = Utils.getBadgeLevel(points);
+    
+    Color badgeColor;
+    switch (badgeLevel) {
+      case 'Platinum':
+        badgeColor = Colors.blueGrey;
+        break;
+      case 'Gold':
+        badgeColor = Colors.amber;
+        break;
+      case 'Silver':
+        badgeColor = Colors.grey;
+        break;
+      case 'Bronze':
+        badgeColor = Colors.brown;
+        break;
+      default:
+        badgeColor = Colors.green;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        '$badgeLevel Debater',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 16),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeToggle(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return SwitchListTile(
+          title: const Text('Dark Mode'),
+          secondary: Icon(
+            themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+          ),
+          value: themeProvider.isDarkMode,
+          onChanged: (value) {
+            themeProvider.setDarkMode(value);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildVoiceSettings(BuildContext context) {
+    return Consumer<AudioProvider>(
+      builder: (context, audioProvider, child) {
+        return ExpansionTile(
+          leading: const Icon(Icons.settings_voice),
+          title: const Text('Voice Settings'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Speech Rate',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  Slider(
+                    value: audioProvider.speechRate,
+                    min: 0.5,
+                    max: 2.0,
+                    divisions: 15,
+                    label: audioProvider.speechRate.toStringAsFixed(1),
+                    onChanged: (value) {
+                      audioProvider.setSpeechRate(value);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Voice Pitch',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  Slider(
+                    value: audioProvider.pitch,
+                    min: 0.5,
+                    max: 2.0,
+                    divisions: 15,
+                    label: audioProvider.pitch.toStringAsFixed(1),
+                    onChanged: (value) {
+                      audioProvider.setPitch(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

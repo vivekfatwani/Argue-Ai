@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "445118184031",
+    "project_id": "aicoach-6950b",
+    "storage_bucket": "aicoach-6950b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:445118184031:android:40b0b1cb9844ab2d9c39ea",
+        "android_client_info": {
+          "package_name": "com.example.argumentor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDO_y0ij-sCsFZW39zkRV_vOez3pmpBfIs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,584 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'dart:async';
+import '../../core/constants.dart';
+import '../../core/providers/debate_provider.dart';
+import '../../core/providers/feedback_provider.dart';
+import '../../core/providers/user_provider.dart';
+import '../../core/utils.dart';
+
+class FeedbackScreen extends StatefulWidget {
+  final String debateId;
+
+  const FeedbackScreen({
+    Key? key,
+    required this.debateId,
+  }) : super(key: key);
+
+  @override
+  State<FeedbackScreen> createState() => _FeedbackScreenState();
+}
+
+// Helper comment explaining the navigation fix
+// We've moved recommendations generation to the DebateProvider to avoid
+// the issue with the FeedbackScreen being disposed before recommendations are completed
+
+class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObserver {
+  Map<String, dynamic>? _feedback;
+  bool _isLoading = true;
+  bool _isDisposed = false;
+  bool _isNavigatingAway = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('FeedbackScreen initState called');
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Use a slight delay to ensure the widget is fully mounted
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!_isDisposed) {
+        _loadDebateAndGenerateFeedback();
+      }
+    });
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint('FeedbackScreen lifecycle state changed to: $state');
+    // Monitor app lifecycle changes to help debug issues
+    if (state == AppLifecycleState.paused) {
+      debugPrint('App paused while on FeedbackScreen');
+    }
+  }
+  
+  @override
+  void dispose() {
+    debugPrint('FeedbackScreen dispose called');
+    WidgetsBinding.instance.removeObserver(this);
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  // This lock prevents multiple navigations during async operations
+  final _navigationLock = Object();
+
+  Future<void> _loadDebateAndGenerateFeedback() async {
+    debugPrint('Starting to load debate and generate feedback');
+    if (_isDisposed || !mounted || _isNavigatingAway) {
+      debugPrint('Widget not mounted, disposed, or navigating away at start of _loadDebateAndGenerateFeedback');
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      debugPrint('Loading debate with ID: ${widget.debateId}');
+      final debateProvider = Provider.of<DebateProvider>(context, listen: false);
+      await debateProvider.loadDebate(widget.debateId);
+      
+      // Check if still mounted after loading debate
+      if (_isDisposed || !mounted) {
+        debugPrint('Widget not mounted or disposed after loading debate');
+        return;
+      }
+      
+      debugPrint('Generating feedback for debate');
+      final feedback = await debateProvider.generateFeedback();
+      
+      // Check if still mounted after generating feedback
+      if (_isDisposed || !mounted) {
+        debugPrint('Widget not mounted or disposed after generating feedback');
+        return;
+      }
+      
+      debugPrint('Feedback generated successfully, updating state');
+      
+      // Check again before updating state
+      if (_isDisposed || !mounted || _isNavigatingAway) {
+        debugPrint('Widget not mounted, disposed, or navigating away before updating state');
+        return;
+      }
+      
+      setState(() {
+        _feedback = feedback;
+        _isLoading = false;
+      });
+      
+      // Update user skills based on feedback
+      if (feedback.containsKey('skillRatings')) {
+        debugPrint('Updating user skills based on feedback');
+        // Store references to providers to avoid context usage after potential unmount
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final feedbackProvider = Provider.of<FeedbackProvider>(context, listen: false);
+        final skillRatings = Map<String, double>.from(feedback['skillRatings']);
+        
+        // Update skills and add points
+        await userProvider.updateSkills(skillRatings);
+        await userProvider.addPoints(AppConstants.pointsPerDebate);
+        
+        // Recommendations are now handled by DebateProvider
+        debugPrint('FeedbackScreen: Skills updated successfully, recommendations handled by DebateProvider');
+      }
+    } catch (e, stack) {
+      // Handle errors and check if mounted before updating state
+      debugPrint('Error in _loadDebateAndGenerateFeedback: $e');
+      debugPrint('Stack trace: $stack');
+      
+      if (!_isDisposed && mounted) {
+        debugPrint('Setting loading to false after error');
+        setState(() {
+          _isLoading = false;
+        });
+        
+        // Show error message to user
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('An error occurred while generating feedback.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        debugPrint('Widget not mounted or disposed after error, cannot update state');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrap the entire build method in a try-catch to prevent app crashes
+    try {
+      // Use WillPopScope to intercept and control back navigation
+    return WillPopScope(
+      onWillPop: () async {
+        debugPrint('Back button pressed on FeedbackScreen');
+        
+        // Always prevent back navigation during loading
+        if (_isLoading) {
+          debugPrint('Preventing back navigation during loading');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait while we analyze your debate...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return false;
+        }
+        
+        // Show a confirmation dialog when feedback is ready
+        if (_feedback != null) {
+          // Set a flag to prevent multiple dialogs
+          if (_isNavigatingAway) return false;
+          
+          final shouldPop = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Leave feedback?'),
+              content: const Text('Are you sure you want to leave this screen?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Leave'),
+                ),
+              ],
+            ),
+          ) ?? false;
+          
+          if (shouldPop) {
+            _isNavigatingAway = true;
+            debugPrint('User confirmed leaving feedback screen');
+            // Use a safer navigation approach with try-catch
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && !_isDisposed) {
+                try {
+                  // Use replace instead of go to avoid stack issues
+                  context.replace(AppConstants.routeDashboard);
+                } catch (e) {
+                  debugPrint('Error navigating to dashboard: $e');
+                }
+              }
+            });
+            return false; // Return false to handle navigation through go_router
+          }
+          return false; // User canceled, stay on screen
+        }
+        
+        return true; // Allow default back behavior if no feedback yet
+      },
+      child: Scaffold(
+      resizeToAvoidBottomInset: false, // Prevent layout issues when keyboard appears
+      appBar: AppBar(
+        title: const Text('Debate Feedback'),
+      ),
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Analyzing your debate performance...'),
+                ],
+              ),
+            )
+          : _buildFeedbackContent(),
+      bottomNavigationBar: _isLoading
+          ? null
+          : BottomAppBar(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_isLoading) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please wait while we analyze your debate...'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+                        
+                        // Simple navigation without complex locking
+                        if (_isNavigatingAway) return;
+                        _isNavigatingAway = true;
+                        
+                        debugPrint('Navigating to Dashboard from FeedbackScreen');
+                        // Use replace instead of go to avoid stack issues
+                        try {
+                          context.replace(AppConstants.routeDashboard);
+                        } catch (e) {
+                          debugPrint('Error navigating to dashboard: $e');
+                          // If navigation fails, reset the flag
+                          _isNavigatingAway = false;
+                        }
+                      },
+                      child: const Text('Back to Home'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_isLoading) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please wait while we analyze your debate...'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+                        
+                        // Simple navigation without complex locking
+                        if (_isNavigatingAway) return;
+                        _isNavigatingAway = true;
+                        
+                        debugPrint('Navigating to Roadmap from FeedbackScreen');
+                        // Use replace instead of go to avoid stack issues
+                        try {
+                          context.replace(AppConstants.routeRoadmap);
+                        } catch (e) {
+                          debugPrint('Error navigating to roadmap: $e');
+                          // If navigation fails, reset the flag
+                          _isNavigatingAway = false;
+                        }
+                      },
+                      child: const Text('View Roadmap'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackContent() {
+    debugPrint('Building feedback content with data: ${_feedback != null}');
+    
+    // Check if feedback is null or missing required data
+    if (_feedback == null) {
+      return const Center(
+        child: Text('Failed to generate feedback'),
+      );
+    }
+    
+    // Verify that all required keys exist in the feedback data
+    if (!_feedback!.containsKey('skillRatings') || 
+        !_feedback!.containsKey('strengths') || 
+        !_feedback!.containsKey('improvements') || 
+        !_feedback!.containsKey('overallFeedback')) {
+      debugPrint('Feedback data is incomplete: ${_feedback!.keys}');
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Feedback data is incomplete'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                debugPrint('Retrying feedback generation');
+                _loadDebateAndGenerateFeedback();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final skillRatings = Map<String, double>.from(_feedback!['skillRatings']);
+    final strengths = List<String>.from(_feedback!['strengths']);
+    final improvements = List<String>.from(_feedback!['improvements']);
+    final overallFeedback = _feedback!['overallFeedback'];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Overall score card
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text(
+                    'Overall Performance',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildScoreIndicator(
+                    Utils.calculateDebateScore(skillRatings)['overall'] ?? 0.0,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Great job! You\'ve earned ${AppConstants.pointsPerDebate} points.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Skill breakdown
+          Text(
+            'Skill Breakdown',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+          _buildRadarChart(skillRatings),
+          const SizedBox(height: 24),
+
+          // Detailed feedback
+          Text(
+            'Detailed Feedback',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Strengths',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...strengths.map((strength) => _buildFeedbackItem(
+                    strength,
+                    Icons.check_circle,
+                    Colors.green,
+                  )),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Areas for Improvement',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...improvements.map((improvement) => _buildFeedbackItem(
+                    improvement,
+                    Icons.trending_up,
+                    Colors.orange,
+                  )),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Overall feedback
+          Text(
+            'Overall Feedback',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                overallFeedback,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreIndicator(double score) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 150,
+          height: 150,
+          child: CircularProgressIndicator(
+            value: score,
+            strokeWidth: 12,
+            backgroundColor: Colors.grey[300],
+            color: _getScoreColor(score),
+          ),
+        ),
+        Column(
+          children: [
+            Text(
+              '${(score * 100).toStringAsFixed(0)}%',
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              _getScoreLabel(score),
+              style: TextStyle(
+                fontSize: 16,
+                color: _getScoreColor(score),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRadarChart(Map<String, double> skillRatings) {
+    // Safely check for empty data
+    if (skillRatings.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Center(child: Text('No skill data available')),
+      );
+    }
+    
+    try {
+      final data = skillRatings.entries.toList();
+      
+      // Use a try-catch to ensure the entire map operation doesn't fail
+      List<Widget> skillWidgets = [];
+      for (var entry in data) {
+        try {
+          String skill;
+          try {
+            // Safely handle potential index errors
+            skill = entry.key.isNotEmpty 
+                ? entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1)
+                : 'Unnamed Skill';
+          } catch (e) {
+            skill = entry.key;
+          }
+          
+          final value = entry.value;
+          
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      skill,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text('${(value * 100).toStringAsFixed(0)}%'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(
+                value: value,
+                backgroundColor: Colors.grey[300],
+                minHeight: 10,
+                borderRadius: BorderRadius.circular(5),
+                color: _getScoreColor(value),
+              ),
+            ],
+          ),
+        );
+        skillWidgets.add(entry);
+      } catch (e) {
+        debugPrint('Error rendering skill widget: $e');
+        // Add a fallback widget instead
+        skillWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text('Error displaying skill: ${entry.key}'),
+          ),
+        );
+      }
+    }
+      
+    return Column(children: skillWidgets);
+    
+  }
+
+  Widget _buildFeedbackItem(String text, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getScoreColor(double score) {
+    if (score >= 0.8) return Colors.green;
+    if (score >= 0.6) return Colors.lightGreen;
+    if (score >= 0.4) return Colors.orange;
+    return Colors.red;
+  }
+
+  String _getScoreLabel(double score) {
+    if (score >= 0.8) return 'Excellent';
+    if (score >= 0.6) return 'Good';
+    if (score >= 0.4) return 'Average';
+    return 'Needs Improvement';
+  }
+}
