@@ -58,3 +58,5 @@ web/main.dart.js.map
 .env
 *.swp
 
+# API Keys & Sensitive Configuration (DO NOT COMMIT)
+lib/core/config/api_keys.dart

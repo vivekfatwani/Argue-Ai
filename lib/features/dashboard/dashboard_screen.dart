@@ -42,7 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ArguMentor'),
+        title: const Text('ArgueAI'),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
@@ -302,7 +302,7 @@ class _HomeTabState extends State<HomeTab> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          height: 150, // Further reduced height to avoid overflow in all boxes
+          height: 165,
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
@@ -310,6 +310,7 @@ class _HomeTabState extends State<HomeTab> {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
@@ -2324,7 +2325,7 @@ class _ProfileTabState extends State<ProfileTab> {
         ? user.skills!.entries.map((e) => '${e.key}: ${(e.value * 100).toStringAsFixed(0)}%').join('\n')
         : 'No skills data yet';
     
-    final shareText = """🎯 My ArguMentor Stats 🎯
+    final shareText = """🎯 My ArgueAI Stats 🎯
     
 Debate Score: ${(user.points / 10).round()}
 Debates Completed: ${(user.completedResources.length / 2).round()}
@@ -2333,7 +2334,7 @@ Resources Completed: ${user.completedResources.length}
 My Skills:
 $skillsText
 
-Download ArguMentor and improve your debate skills!""";
+Download ArgueAI and improve your debate skills!""";
     
     // In a real app, this would use the share plugin
     ScaffoldMessenger.of(context).showSnackBar(

@@ -56,7 +56,7 @@ class AIService {
   developer.log('Last user message for prompt: $lastUserMessage', name: 'AIService');
 
   final prompt = """
-You are ArguMentor, an AI debate partner. You are engaging in a debate on the topic: "$topic".
+You are ArgueAI, an AI debate partner. You are engaging in a debate on the topic: "$topic".
 Below is the most recent thing the user said (transcribed from their audio):
 """
   + lastUserMessage +

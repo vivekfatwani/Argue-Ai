@@ -148,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       Transform.translate(
                         offset: Offset(0, _slideAnimation.value),
                         child: const Text(
-                          'ArguMentor',
+                          'ArgueAI',
                           style: TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.bold,

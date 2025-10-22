@@ -104,14 +104,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(bottom: 16.0),
       child: InkWell(
         onTap: () {
-          if (debate.isCompleted) {
-            context.go(AppConstants.routeFeedback, extra: debate.id);
-          } else {
-            // For incomplete debates, we could offer to resume them
-            // For now, just show feedback if available
-            if (debate.feedback != null) {
+          if (debate.id.isEmpty) {
+            Utils.showSnackBar(context, 'Invalid debate ID', isError: true);
+            return;
+          }
+          
+          try {
+            if (debate.isCompleted) {
               context.go(AppConstants.routeFeedback, extra: debate.id);
+            } else {
+              // For incomplete debates, we could offer to resume them
+              // For now, just show feedback if available
+              if (debate.feedback != null) {
+                context.go(AppConstants.routeFeedback, extra: debate.id);
+              } else {
+                Utils.showSnackBar(context, 'Debate is not completed yet');
+              }
             }
+          } catch (e) {
+            debugPrint('Error navigating to feedback: $e');
+            Utils.showSnackBar(context, 'Error opening debate details', isError: true);
           }
         },
         borderRadius: BorderRadius.circular(12),

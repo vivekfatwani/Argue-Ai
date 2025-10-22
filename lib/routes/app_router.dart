@@ -51,31 +51,44 @@ class AppRouter {
       redirect: (context, state) {
         final isLoggedIn = userProvider.isLoggedIn;
         final isLoading = userProvider.isLoading;
-        final isOnLoginPage = state.matchedLocation == AppConstants.routeLogin;
-        final isOnSignupPage = state.matchedLocation == AppConstants.routeSignup;
-        final isOnOnboardingPage = state.matchedLocation == AppConstants.routeOnboarding;
+        final currentPath = state.matchedLocation;
+        final isOnSplashPage = currentPath == AppConstants.routeSplash;
+        final isOnLoginPage = currentPath == AppConstants.routeLogin;
+        final isOnSignupPage = currentPath == AppConstants.routeSignup;
+        final isOnOnboardingPage = currentPath == AppConstants.routeOnboarding;
+        final isOnAuthPage = isOnLoginPage || isOnSignupPage || isOnOnboardingPage;
         
         // Log the current navigation state for debugging
         developer.log(
-          'Router redirect: path=${state.matchedLocation}, isLoggedIn=$isLoggedIn, isLoading=$isLoading',
+          'Router redirect: path=$currentPath, isLoggedIn=$isLoggedIn, isLoading=$isLoading',
           name: 'AppRouter',
         );
         
         // Don't redirect while loading
         if (isLoading) {
+          developer.log('Still loading, staying on current page', name: 'AppRouter');
           return null;
         }
         
-        // If not logged in and not on auth pages, redirect to onboarding
-        if (!isLoggedIn && !isOnLoginPage && !isOnSignupPage && !isOnOnboardingPage) {
-          return AppConstants.routeOnboarding;
+        // Handle splash screen - let it decide where to go
+        if (isOnSplashPage) {
+          developer.log('On splash page, letting splash screen handle navigation', name: 'AppRouter');
+          return null;
         }
         
-        // If logged in and on auth pages, redirect to dashboard
-        if (isLoggedIn && (isOnLoginPage || isOnSignupPage || isOnOnboardingPage)) {
+        // If logged in and trying to access auth pages, redirect to dashboard
+        if (isLoggedIn && isOnAuthPage) {
+          developer.log('Logged in user on auth page, redirecting to dashboard', name: 'AppRouter');
           return AppConstants.routeDashboard;
         }
         
+        // If not logged in and trying to access protected pages, redirect to onboarding
+        if (!isLoggedIn && !isOnAuthPage) {
+          developer.log('Not logged in, trying to access protected page, redirecting to onboarding', name: 'AppRouter');
+          return AppConstants.routeOnboarding;
+        }
+        
+        developer.log('No redirect needed', name: 'AppRouter');
         return null;
       },
       routes: [

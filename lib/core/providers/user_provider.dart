@@ -105,15 +105,9 @@ class UserProvider with ChangeNotifier {
           await _storageService.saveUser(_user!);
         }
       } else {
-        print('User document does not exist in Firestore');
-        // If document doesn't exist, try to get from local storage
-        _user = await _storageService.getUser();
-        
-        if (_user == null || _user!.id != uid) {
-          print('No valid user found in local storage, creating empty user');
-          // If no user in local storage or ID doesn't match, return empty user
-          _user = null;
-        }
+        print('User document does not exist in Firestore, will be created by caller');
+        // Don't set _user to null, let the caller handle creation
+        _user = null;
       }
     } catch (e) {
       print('Error getting user data from Firestore: $e');
@@ -176,14 +170,19 @@ class UserProvider with ChangeNotifier {
         
         // If user data wasn't found in Firestore, create it
         if (_user == null) {
-          print('Creating new user data in Firestore');
+          print('Creating new user data in Firestore for login');
           final now = DateTime.now();
+          final firebaseUser = userCredential.user!;
+          
           _user = User(
-            id: userCredential.user!.uid,
-            name: userCredential.user!.displayName ?? email.split('@')[0],
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName ?? email.split('@')[0],
             email: email,
             createdAt: now,
             lastActive: now,
+            points: 0,
+            skills: {},
+            completedResources: [],
           );
           
           // Save to Firestore
@@ -193,9 +192,16 @@ class UserProvider with ChangeNotifier {
               'email': _user!.email,
               'createdAt': Timestamp.fromDate(_user!.createdAt),
               'lastActive': Timestamp.fromDate(_user!.lastActive),
-              'points': 0,
-              'skills': {},
-              'completedResources': [],
+              'points': _user!.points,
+              'skills': _user!.skills,
+              'completedResources': _user!.completedResources,
+              'photoUrl': _user!.photoUrl,
+              'preferences': {
+                'darkMode': false,
+                'notificationsEnabled': true,
+                'voiceSpeed': 1.0,
+                'voicePitch': 1.0,
+              },
             });
             print('New user data saved to Firestore');
           } catch (e) {
@@ -239,11 +245,77 @@ class UserProvider with ChangeNotifier {
       } else {
         return e.message;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('General login error: $e');
+      print('Stack trace: $stackTrace');
       _isLoading = false;
       notifyListeners();
-      return 'An error occurred: $e';
+      
+      // Check if user is actually logged in despite the error
+      if (_auth.currentUser != null) {
+        print('Firebase user exists despite error, attempting to continue...');
+        final firebaseUser = _auth.currentUser!;
+        
+        try {
+          await _getUserFromFirestore(firebaseUser.uid);
+          
+          // If user document doesn't exist, create it
+          if (_user == null) {
+            print('Creating user document after error recovery...');
+            final now = DateTime.now();
+            
+            _user = User(
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+              email: firebaseUser.email ?? '',
+              createdAt: now,
+              lastActive: now,
+              points: 0,
+              skills: {},
+              completedResources: [],
+            );
+            
+            // Save to Firestore
+            try {
+              await _firestore.collection('users').doc(_user!.id).set({
+                'name': _user!.name,
+                'email': _user!.email,
+                'createdAt': Timestamp.fromDate(_user!.createdAt),
+                'lastActive': Timestamp.fromDate(_user!.lastActive),
+                'points': _user!.points,
+                'skills': _user!.skills,
+                'completedResources': _user!.completedResources,
+                'photoUrl': _user!.photoUrl,
+                'preferences': {
+                  'darkMode': false,
+                  'notificationsEnabled': true,
+                  'voiceSpeed': 1.0,
+                  'voicePitch': 1.0,
+                },
+              });
+              print('User document created successfully');
+            } catch (firestoreError) {
+              print('Error creating user document: $firestoreError');
+            }
+            
+            // Save to local storage
+            await _storageService.saveUser(_user!);
+          }
+          
+          if (_user != null) {
+            print('Successfully recovered user data, login OK');
+            _isLoading = false;
+            notifyListeners();
+            return null; // Success
+          }
+        } catch (e2) {
+          print('Failed to retrieve/create user data: $e2');
+        }
+      }
+      
+      _isLoading = false;
+      notifyListeners();
+      return 'An error occurred during login. Please try again.';
     }
   }
 
