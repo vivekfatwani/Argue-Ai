@@ -17,7 +17,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
-      title: 'Welcome to ArguMentor',
+      title: 'Welcome to ArgueAI',
       description: 'Your AI-powered debate coach to help you master the art of persuasion',
       image: 'assets/images/onboarding_1.png',
     ),
