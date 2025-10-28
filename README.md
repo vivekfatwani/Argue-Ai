@@ -6,13 +6,19 @@
 
 ## 📚 **Documentation**
 
-For detailed technical information and understanding of the system:
+> **📖 [View Complete Documentation Index](DOCUMENTATION_INDEX.md)** - Navigate all available documentation
 
-- **[📖 Comprehensive Technical Documentation](COMPREHENSIVE_DOCUMENTATION.md)** - Complete guide covering tech stack, architecture, data models, AI integration, and more
-- **[🏗️ System Architecture & Flow Diagrams](SYSTEM_ARCHITECTURE.md)** - Visual representations of data flows, component relationships, and system architecture
+### Quick Links
+
+**For Understanding the System:**
+- **[📖 Comprehensive Technical Documentation](COMPREHENSIVE_DOCUMENTATION.md)** - Complete technical guide (15,000+ words)
+- **[🏗️ System Architecture & Flow Diagrams](SYSTEM_ARCHITECTURE.md)** - Visual architecture and data flows
+- **[👨‍💻 Developer Quick Reference](DEVELOPER_GUIDE.md)** - Essential info for developers
+
+**For Getting Started:**
 - **[🚀 Quick Start Guide](QUICK_START.md)** - Get up and running in 5 minutes
-- **[🔐 Firebase Setup Guide](FIREBASE_SETUP_GUIDE.md)** - Detailed Firebase configuration instructions
-- **[📋 Implementation Summary](SUMMARY.md)** - Overview of what's been implemented
+- **[🔐 Firebase Setup Guide](FIREBASE_SETUP_GUIDE.md)** - Detailed Firebase configuration
+- **[📋 Implementation Summary](SUMMARY.md)** - What's been implemented
 
 ---
 
