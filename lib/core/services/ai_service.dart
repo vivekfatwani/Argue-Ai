@@ -56,13 +56,28 @@ class AIService {
   developer.log('Last user message for prompt: $lastUserMessage', name: 'AIService');
 
   final prompt = """
-You are ArgueAI, an AI debate partner. You are engaging in a debate on the topic: "$topic".
-Below is the most recent thing the user said (transcribed from their audio):
-"""
-  + lastUserMessage +
-  """
+You are a skilled debate partner engaging in a structured, turn-based voice debate on: "$topic".
 
-Instruction: Respond directly to the user's last message above. If the user made a claim, challenge it with clear arguments; if they asked to take the first turn or perform an action, respond to that request accordingly. Use logical reasoning and relevant evidence. Keep your response concise (3-5 sentences) and focused on the last user message.
+Your role:
+- Act as an OPPOSING debater who challenges the user's arguments constructively
+- Help the user improve their debate skills through rigorous but respectful argumentation
+- Respond point-by-point to what the user just said
+- Use evidence, logic, and rhetorical techniques
+- Maintain a professional yet conversational tone
+
+User's last statement:
+"$lastUserMessage"
+
+CRITICAL RULES:
+1. Keep response UNDER 40 words (2-3 sentences max)
+2. Respond DIRECTLY to their last point
+3. Make ONE clear argument or counter-argument
+4. This is turn-based - you speak, then STOP for user's reply
+5. Be assertive but respectful, like a debate tournament opponent
+6. DO NOT use any markdown formatting (no asterisks, underscores, or special characters)
+7. Write in plain text ONLY - speak naturally as if in a live debate
+
+Your response:
 """;
 
   formattedHistory.insert(0, Content.text(prompt));

@@ -8,6 +8,7 @@ import '../../core/models/debate_model.dart';
 import '../../widgets/debate_bubble.dart';
 import '../../widgets/typing_indicator.dart';
 import '../../widgets/voice_wave.dart';
+import '../../core/services/elevenlabs_tts_service.dart';
 
 class VoiceDebateScreen extends StatefulWidget {
   final String topic;
@@ -23,8 +24,10 @@ class VoiceDebateScreen extends StatefulWidget {
 
 class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
   final ScrollController _scrollController = ScrollController();
+  final ElevenLabsTTS _elevenLabsTTS = ElevenLabsTTS(); // ElevenLabs TTS service
   bool _isListening = false;
   String _currentSpeech = '';
+  int _lastMessageCount = 0; // Track message count to detect new AI responses
 
   @override
   void initState() {
@@ -37,6 +40,9 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
 
   @override
   void dispose() {
+    // Stop any ongoing speech before disposing
+    _elevenLabsTTS.stop();
+    _elevenLabsTTS.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -44,6 +50,27 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
   void _startDebate() async {
     final debateProvider = Provider.of<DebateProvider>(context, listen: false);
     await debateProvider.startDebate(widget.topic, DebateMode.voice);
+    
+    // Initialize message count after debate starts
+    if (mounted) {
+      setState(() {
+        _lastMessageCount = debateProvider.currentDebate?.messages.length ?? 0;
+      });
+      
+      // Speak the initial AI message using ElevenLabs
+      if (debateProvider.currentDebate != null && 
+          debateProvider.currentDebate!.messages.isNotEmpty) {
+        final lastMessage = debateProvider.currentDebate!.messages.last;
+        if (!lastMessage.isUser) {
+          await _elevenLabsTTS.speak(lastMessage.content);
+          
+          // Auto-enable microphone after AI finishes speaking
+          if (mounted) {
+            _toggleListening();
+          }
+        }
+      }
+    }
   }
 
   void _setupSpeechListener() {
@@ -71,15 +98,29 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
     if (_isListening) {
       await audioProvider.stopListening();
       
-      // Submit the recognized speech if not empty
-      final speech = audioProvider.getLastWords();
-      if (speech.isNotEmpty) {
+      // Submit the recognized speech if valid
+      final speech = audioProvider.getLastWords().trim();
+      
+      // Filter out invalid/incomplete speech
+      bool isValidSpeech = speech.isNotEmpty && 
+                          speech != 'Simulated speech input...' &&
+                          speech.length > 5 &&  // At least 6 characters
+                          speech.split(' ').length >= 3;  // At least 3 words
+      
+      if (isValidSpeech) {
         try {
           debugPrint('[VoiceDebateScreen] Submitting recognized speech: $speech');
         } catch (_) {}
 
         final debateProvider = Provider.of<DebateProvider>(context, listen: false);
         debateProvider.addUserMessage(speech);
+
+        // Clear the current speech display
+        if (mounted) {
+          setState(() {
+            _currentSpeech = '';
+          });
+        }
 
         // Scroll to bottom after message is added
         Future.delayed(const Duration(milliseconds: 100), () {
@@ -91,8 +132,22 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
             );
           }
         });
+      } else {
+        // Incomplete speech - show message and don't submit
+        debugPrint('[VoiceDebateScreen] Speech too short, not submitting: "$speech"');
+        if (mounted) {
+          setState(() {
+            _currentSpeech = '';
+          });
+        }
       }
     } else {
+      // Stop AI speaking if user wants to interrupt and speak
+      if (audioProvider.isSpeaking) {
+        await audioProvider.stopSpeaking();
+        debugPrint('[VoiceDebateScreen] User interrupted AI speech');
+      }
+      
       if (mounted) {
         setState(() {
           _currentSpeech = '';
@@ -118,6 +173,37 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
     }
   }
 
+  // Check for new AI messages and speak them using ElevenLabs
+  void _checkAndSpeakNewAiMessage(DebateProvider debateProvider) async {
+    if (debateProvider.currentDebate == null) return;
+    
+    final currentMessageCount = debateProvider.currentDebate!.messages.length;
+    
+    // If there's a new message
+    if (currentMessageCount > _lastMessageCount) {
+      _lastMessageCount = currentMessageCount;
+      
+      // Get the latest message
+      final lastMessage = debateProvider.currentDebate!.messages.last;
+      
+      // If it's from the AI and not typing anymore, speak it
+      if (!lastMessage.isUser && !debateProvider.isAiTyping) {
+        debugPrint('[VoiceDebateScreen] Speaking AI response: ${lastMessage.content}');
+        await _elevenLabsTTS.speak(lastMessage.content);
+        
+        // Auto-enable microphone after AI finishes speaking
+        if (mounted && !_isListening) {
+          debugPrint('[VoiceDebateScreen] AI finished speaking, auto-enabling microphone');
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted && !_isListening) {
+              _toggleListening();
+            }
+          });
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,6 +222,13 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
           final isLoading = debateProvider.isLoading;
           final isAiTyping = debateProvider.isAiTyping;
           final isSpeaking = audioProvider.isSpeaking;
+          
+          // Check for new AI messages to speak
+          if (!isLoading && debate != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _checkAndSpeakNewAiMessage(debateProvider);
+            });
+          }
           
           if (isLoading || debate == null) {
             return const Center(
@@ -232,36 +325,90 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (isSpeaking)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text('AI is speaking...'),
-                      )
-                    else
-                      GestureDetector(
-                        onTap: _toggleListening,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _isListening
-                                ? Theme.of(context).colorScheme.error
-                                : Theme.of(context).colorScheme.primary,
-                          ),
-                          child: Center(
-                            child: Icon(
-                              _isListening ? Icons.stop : Icons.mic,
-                              color: Colors.white,
-                              size: 32,
+                    // Instruction text
+                    Text(
+                      isSpeaking 
+                          ? 'AI is responding... (tap stop to interrupt)'
+                          : _isListening 
+                              ? 'Listening... Speak at least 3 words, then tap to submit'
+                              : 'Tap microphone to speak your argument',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    // Control buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isSpeaking)
+                          // Stop AI speech button
+                          GestureDetector(
+                            onTap: () async {
+                              await audioProvider.stopSpeaking();
+                              debugPrint('[VoiceDebateScreen] User interrupted AI speech');
+                            },
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Theme.of(context).colorScheme.error,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).colorScheme.error.withOpacity(0.3),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.stop_rounded,
+                                  color: Colors.white,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          // Microphone button
+                          GestureDetector(
+                            onTap: _toggleListening,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _isListening
+                                    ? Theme.of(context).colorScheme.error
+                                    : Theme.of(context).colorScheme.primary,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_isListening 
+                                        ? Theme.of(context).colorScheme.error 
+                                        : Theme.of(context).colorScheme.primary).withOpacity(0.3),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  _isListening ? Icons.stop_rounded : Icons.mic,
+                                  color: Colors.white,
+                                  size: 36,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
               ),

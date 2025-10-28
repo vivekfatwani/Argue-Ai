@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter_tts/flutter_tts.dart';
 
 enum TtsState { playing, stopped, paused, continued }
 
@@ -16,10 +17,12 @@ class AudioService {
   bool _hasSpeech = false;
   Timer? _mockTimer;
   
-  // Text to speech (mock implementation)
+  // Text to speech (real implementation)
+  final FlutterTts _flutterTts = FlutterTts();
   TtsState _ttsState = TtsState.stopped;
   final StreamController<TtsState> _ttsStateController = StreamController<TtsState>.broadcast();
   Stream<TtsState> get ttsState => _ttsStateController.stream;
+  bool _hasTts = false;
   
   // Audio player
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -36,6 +39,71 @@ class AudioService {
       _ttsState = TtsState.stopped;
       _ttsStateController.add(_ttsState);
     });
+
+    // Initialize Flutter TTS
+    try {
+      // Set up TTS completion handler
+      _flutterTts.setCompletionHandler(() {
+        _isSpeaking = false;
+        _ttsState = TtsState.stopped;
+        _ttsStateController.add(_ttsState);
+        print('[AudioService] TTS completed');
+      });
+
+      // Set up TTS error handler
+      _flutterTts.setErrorHandler((message) {
+        _isSpeaking = false;
+        _ttsState = TtsState.stopped;
+        _ttsStateController.add(_ttsState);
+        print('[AudioService] TTS error: $message');
+      });
+
+      // Configure default TTS settings for natural, debate-style speech
+      await _flutterTts.setLanguage("en-US");
+      
+      // PACE CONTROL: Using combination of speech rate + extensive pauses
+      // Speech rate: 0.4 (moderate) combined with many pauses = natural debate pace
+      await _flutterTts.setSpeechRate(0.4);
+      
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(0.90); // Slightly lower pitch for more natural sound
+      
+      // Try to set a more natural voice if available
+      try {
+        final voices = await _flutterTts.getVoices;
+        if (voices != null && voices is List && voices.isNotEmpty) {
+          // Try to find a good quality voice (prefer neural/enhanced voices)
+          for (var voice in voices) {
+            final voiceMap = voice as Map<dynamic, dynamic>;
+            final name = voiceMap['name']?.toString().toLowerCase() ?? '';
+            
+            // Prefer voices with "enhanced", "neural", or natural-sounding names
+            if (name.contains('enhanced') || 
+                name.contains('neural') ||
+                name.contains('quality')) {
+              // Convert to proper type
+              final voiceConfig = <String, String>{};
+              voiceMap.forEach((key, value) {
+                if (key != null && value != null) {
+                  voiceConfig[key.toString()] = value.toString();
+                }
+              });
+              await _flutterTts.setVoice(voiceConfig);
+              print('[AudioService] Using enhanced voice: $name');
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        print('[AudioService] Could not set custom voice: $e');
+      }
+      
+      _hasTts = true;
+      print('[AudioService] TTS initialized successfully');
+    } catch (e) {
+      _hasTts = false;
+      print('[AudioService] Failed to init TTS: $e');
+    }
 
     // Try to initialize the real STT engine; if it fails, we'll fall back to mock
     try {
@@ -125,31 +193,121 @@ class AudioService {
     return;
   }
   
-  // Get the last recognized words
+  // Get the last recognized words and clear them
   String getLastWords() {
-    return _lastWords;
+    final words = _lastWords;
+    _lastWords = ''; // Clear after retrieval to prevent duplicate submissions
+    return words;
   }
   
-  // Speak text (mock implementation)
+  // Speak text (real implementation with fallback)
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
+    
+    // Stop any ongoing speech first
+    if (_isSpeaking) {
+      await stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
     
     _isSpeaking = true;
     _ttsState = TtsState.playing;
     _ttsStateController.add(_ttsState);
     
-    // Simulate TTS with a delay based on text length
-    final duration = Duration(milliseconds: text.length * 50);
-    await Future.delayed(duration);
+    try {
+      if (_hasTts) {
+        // Add pauses to the full text for natural pacing
+        String processedText = _addNaturalPauses(text);
+        
+        print('[AudioService] Speaking with TTS (debate mode): ${processedText.substring(0, processedText.length > 50 ? 50 : processedText.length)}...');
+        
+        // Speak the full text at once (let completion handler manage the end)
+        await _flutterTts.speak(processedText);
+        
+        // The completion handler will automatically set _isSpeaking = false
+        // when the TTS engine finishes speaking
+      } else {
+        // Fallback to mock implementation
+        print('[AudioService] Using mock TTS (no real TTS available)');
+        final duration = Duration(milliseconds: text.length * 50);
+        await Future.delayed(duration);
+        
+        _isSpeaking = false;
+        _ttsState = TtsState.stopped;
+        _ttsStateController.add(_ttsState);
+      }
+    } catch (e) {
+      print('[AudioService] Error speaking: $e');
+      _isSpeaking = false;
+      _ttsState = TtsState.stopped;
+      _ttsStateController.add(_ttsState);
+    }
+  }
+  
+  // Split text into smaller chunks for controlled pacing
+  List<String> _splitIntoChunks(String text) {
+    List<String> chunks = [];
     
-    _isSpeaking = false;
-    _ttsState = TtsState.stopped;
-    _ttsStateController.add(_ttsState);
+    // Split by sentences first
+    List<String> sentences = text.split(RegExp(r'[.!?]+'));
+    
+    for (String sentence in sentences) {
+      sentence = sentence.trim();
+      if (sentence.isEmpty) continue;
+      
+      // If sentence is short, use it as is
+      if (sentence.split(' ').length <= 8) {
+        chunks.add(sentence);
+      } else {
+        // Split long sentences by commas or conjunctions
+        List<String> parts = sentence.split(RegExp(r',|\sand\s|\sbut\s|\sor\s'));
+        for (String part in parts) {
+          part = part.trim();
+          if (part.isNotEmpty) {
+            chunks.add(part);
+          }
+        }
+      }
+    }
+    
+    return chunks;
+  }
+  
+  // Add natural pauses to text for debate-style speech
+  String _addNaturalPauses(String text) {
+    // Add extensive pauses to slow down the speech
+    String result = text;
+    
+    // Very long pause after sentences (period, exclamation, question)
+    result = result.replaceAll('. ', '.......... ');  // 10 dots for long pause
+    result = result.replaceAll('! ', '.......... ');
+    result = result.replaceAll('? ', '.......... ');
+    
+    // Medium pause after commas and semicolons
+    result = result.replaceAll(', ', ',,,,, ');  // 5 commas for medium pause
+    result = result.replaceAll('; ', ';;;;; ');
+    
+    // Small pause after conjunctions
+    result = result.replaceAll(' and ', ',, and ');
+    result = result.replaceAll(' but ', ',, but ');
+    result = result.replaceAll(' or ', ',, or ');
+    result = result.replaceAll(' because ', ',,,, because ');
+    result = result.replaceAll(' however ', ',,,,, however ');
+    result = result.replaceAll(' therefore ', ',,,,, therefore ');
+    
+    return result;
   }
   
   // Stop speaking
   Future<void> stop() async {
     if (_isSpeaking) {
+      try {
+        if (_hasTts) {
+          await _flutterTts.stop();
+        }
+      } catch (e) {
+        print('[AudioService] Error stopping TTS: $e');
+      }
       _isSpeaking = false;
       _ttsState = TtsState.stopped;
       _ttsStateController.add(_ttsState);
@@ -158,14 +316,24 @@ class AudioService {
   
   // Set speech rate
   Future<void> setSpeechRate(double rate) async {
-    // Mock implementation
-    return;
+    try {
+      if (_hasTts) {
+        await _flutterTts.setSpeechRate(rate);
+      }
+    } catch (e) {
+      print('[AudioService] Error setting speech rate: $e');
+    }
   }
   
   // Set pitch
   Future<void> setPitch(double pitch) async {
-    // Mock implementation
-    return;
+    try {
+      if (_hasTts) {
+        await _flutterTts.setPitch(pitch);
+      }
+    } catch (e) {
+      print('[AudioService] Error setting pitch: $e');
+    }
   }
   
   // Play a sound effect

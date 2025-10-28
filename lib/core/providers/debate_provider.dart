@@ -25,9 +25,14 @@ class DebateProvider with ChangeNotifier {
 
     _currentDebate = Debate.create(topic: topic, mode: mode);
 
-    // Add an initial AI message to start the debate
+    // Add an initial AI message to start the debate (concise for voice mode)
+    final initialMessage = mode == DebateMode.voice
+        ? "I'll argue against your position on: $topic. You start first."
+        : "I'm ready to debate the topic: \"$topic\". Would you like to go first, or should I start?";
+    
     await addAiMessage(
-      "I'm ready to debate the topic: \"$topic\". Would you like to go first, or should I start?",
+      initialMessage,
+      speakInVoiceMode: mode == DebateMode.voice,
     );
 
     _isLoading = false;
@@ -51,12 +56,12 @@ class DebateProvider with ChangeNotifier {
     await _storageService.saveDebate(_currentDebate!);
     notifyListeners();
 
-    // Generate AI response
-    await generateAiResponse();
+    // Generate AI response (enable speech for voice mode)
+    await generateAiResponse(speakInVoiceMode: _currentDebate!.mode == DebateMode.voice);
   }
 
   // Add an AI message to the debate
-  Future<void> addAiMessage(String content) async {
+  Future<void> addAiMessage(String content, {bool speakInVoiceMode = false}) async {
     if (_currentDebate == null) return;
 
     final message = DebateMessage(
@@ -74,7 +79,7 @@ class DebateProvider with ChangeNotifier {
   }
 
   // Generate AI response based on the current debate
-  Future<void> generateAiResponse() async {
+  Future<void> generateAiResponse({bool speakInVoiceMode = false}) async {
     if (_currentDebate == null) return;
 
     _isAiTyping = true;
@@ -86,10 +91,11 @@ class DebateProvider with ChangeNotifier {
         _currentDebate!.messages,
       );
 
-      await addAiMessage(response);
+      await addAiMessage(response, speakInVoiceMode: speakInVoiceMode);
     } catch (e) {
       await addAiMessage(
         "I'm sorry, I couldn't generate a response at this time. Let's continue the debate.",
+        speakInVoiceMode: speakInVoiceMode,
       );
     }
 
