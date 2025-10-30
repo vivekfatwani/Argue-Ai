@@ -48,10 +48,8 @@ dependencies:
   firebase_auth: ^4.7.3
   cloud_firestore: ^4.8.5
   firebase_storage: ^11.2.6
-  
-  # Open Source Voice (Offline, Better Quality)
-  sherpa_onnx: ^1.10.27  # TTS & STT - Offline, Fast
-  record: ^5.1.2  # Audio recording for STT
+  speech_to_text: ^7.3.0
+  flutter_tts: ^4.2.0
 
 dev_dependencies:
   flutter_test:

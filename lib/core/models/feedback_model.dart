@@ -97,12 +97,14 @@ class LearningResource {
 
   factory LearningResource.fromJson(Map<String, dynamic> json) {
     return LearningResource(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      type: json['type'],
-      url: json['url'],
-      targetSkills: List<String>.from(json['targetSkills']),
+      id: json['id'] ?? '',
+      title: json['title'] ?? 'Untitled',
+      description: json['description'] ?? '',
+      type: json['type'] ?? 'article',
+      url: json['url'] ?? '',
+      targetSkills: json['targetSkills'] != null 
+          ? List<String>.from(json['targetSkills'])
+          : [],
       isCompleted: json['isCompleted'] ?? false,
     );
   }

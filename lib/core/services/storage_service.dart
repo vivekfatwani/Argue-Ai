@@ -67,17 +67,25 @@ class StorageService {
         if (snapshot.docs.isNotEmpty) {
           debates = snapshot.docs.map((doc) {
             final data = doc.data();
-            // Convert Timestamp to DateTime
-            data['startTime'] = (data['startTime'] as Timestamp).toDate().toIso8601String();
-            if (data['endTime'] != null) {
+            // Convert Timestamp to DateTime - handle null values
+            if (data['startTime'] != null && data['startTime'] is Timestamp) {
+              data['startTime'] = (data['startTime'] as Timestamp).toDate().toIso8601String();
+            } else if (data['startTime'] == null) {
+              data['startTime'] = DateTime.now().toIso8601String();
+            }
+            
+            if (data['endTime'] != null && data['endTime'] is Timestamp) {
               data['endTime'] = (data['endTime'] as Timestamp).toDate().toIso8601String();
             }
+            
             // Ensure messages are properly formatted
             if (data['messages'] != null) {
               final List<dynamic> messages = data['messages'];
               for (var i = 0; i < messages.length; i++) {
                 if (messages[i]['timestamp'] is Timestamp) {
                   messages[i]['timestamp'] = (messages[i]['timestamp'] as Timestamp).toDate().toIso8601String();
+                } else if (messages[i]['timestamp'] == null) {
+                  messages[i]['timestamp'] = DateTime.now().toIso8601String();
                 }
               }
             }
