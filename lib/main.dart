@@ -5,26 +5,30 @@ import 'package:argumentor/routes/app_router.dart';
 import 'package:argumentor/core/services/storage_service.dart';
 import 'package:argumentor/core/services/ai_service.dart';
 import 'package:argumentor/core/services/audio_service.dart';
+import 'package:argumentor/core/services/supabase_service.dart';
 import 'package:argumentor/core/providers/user_provider.dart';
 import 'package:argumentor/core/providers/debate_provider.dart';
 import 'package:argumentor/core/providers/feedback_provider.dart';
 import 'package:argumentor/core/providers/theme_provider.dart';
 import 'package:argumentor/core/providers/audio_provider.dart';
 import  'package:argumentor/core/config/api_keys.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:argumentor/core/config/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: SupabaseConfig.supabaseUrl,
+    anonKey: SupabaseConfig.supabaseAnonKey,
   );
   
   // Initialize services
   final storageService = StorageService();
   await storageService.init();
+  
+  final supabaseService = SupabaseService();
   
   // Initialize AI service with your API key
   final aiService = AIService(ApiKeys.geminiApiKey);
@@ -35,7 +39,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider(storageService)),
+        ChangeNotifierProvider(create: (_) => UserProvider(storageService, supabaseService)),
         ChangeNotifierProvider(create: (_) => ThemeProvider(storageService)),
         ChangeNotifierProvider(create: (_) => DebateProvider(storageService, aiService)),
         ChangeNotifierProvider(create: (_) => FeedbackProvider(storageService, aiService)),

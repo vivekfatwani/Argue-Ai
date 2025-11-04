@@ -119,12 +119,15 @@ Provide feedback on the user's debating skills in the following JSON format:
     "clarity": 0.0 to 1.0,
     "logic": 0.0 to 1.0,
     "rebuttalQuality": 0.0 to 1.0,
-    "persuasiveness": 0.0 to 1.0
+    "persuasiveness": 0.0 to 1.0,
+    "communication": 0.0 to 1.0
   },
   "strengths": ["strength1", "strength2", "strength3"],
   "improvements": ["improvement1", "improvement2", "improvement3"],
   "overallFeedback": "A paragraph of overall feedback"
 }
+
+Rate "communication" based on: tone, word choice, engagement, responsiveness, and overall conversational flow.
 """;
       
       final response = await _model.generateContent(
@@ -165,7 +168,8 @@ Provide feedback on the user's debating skills in the following JSON format:
           "clarity": 0.7,
           "logic": 0.8,
           "rebuttalQuality": 0.6,
-          "persuasiveness": 0.75
+          "persuasiveness": 0.75,
+          "communication": 0.72
         },
         "strengths": [
           "Good use of evidence",

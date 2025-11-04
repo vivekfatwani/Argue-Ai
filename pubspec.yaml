@@ -42,14 +42,11 @@ dependencies:
   path_provider: ^2.1.1
   uuid: ^4.0.0
   flutter_svg: ^2.0.9
-  
-  # Firebase packages
-  firebase_core: ^2.15.1
-  firebase_auth: ^4.7.3
-  cloud_firestore: ^4.8.5
-  firebase_storage: ^11.2.6
   speech_to_text: ^7.3.0
   flutter_tts: ^4.2.0
+  
+  # Supabase - replaces Firebase
+  supabase_flutter: ^2.10.3
 
 dev_dependencies:
   flutter_test:

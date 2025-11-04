@@ -357,6 +357,7 @@ class _HomeTabState extends State<HomeTab> {
       'Logic': 0.0,
       'Rebuttal Quality': 0.0,
       'Persuasiveness': 0.0,
+      'Communication': 0.0,
     };
     
     final userSkills = skills?.map(

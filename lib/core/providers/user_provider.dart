@@ -1,17 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 
 class UserProvider with ChangeNotifier {
   User? _user;
   final StorageService _storageService;
+  final SupabaseService _supabaseService;
   bool _isLoading = true;
-  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  UserProvider(this._storageService) {
+  UserProvider(this._storageService, this._supabaseService) {
     _initializeUser();
   }
 
@@ -23,14 +21,14 @@ class UserProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     
-    // Check if there's a Firebase user already logged in
-    final firebaseUser = _auth.currentUser;
+    // Check if there's a Supabase user already logged in
+    final currentUser = _supabaseService.currentUser;
     
-    if (firebaseUser != null) {
-      // User is logged in, get their data from Firestore
-      await _getUserFromFirestore(firebaseUser.uid);
+    if (currentUser != null) {
+      // User is logged in, get their data from Supabase
+      await _getUserFromSupabase(currentUser.id);
     } else {
-      // No Firebase user, try to get from local storage
+      // No Supabase user, try to get from local storage
       _user = await _storageService.getUser();
     }
     
@@ -38,52 +36,46 @@ class UserProvider with ChangeNotifier {
     notifyListeners();
   }
   
-  Future<void> _getUserFromFirestore(String uid) async {
+  Future<void> _getUserFromSupabase(String uid) async {
     try {
-      print('Getting user data from Firestore for uid: $uid');
-      final docSnapshot = await _firestore.collection('users').doc(uid).get();
+      print('Getting user data from Supabase for uid: $uid');
+      final userData = await _supabaseService.getUserProfile(uid);
       
-      if (docSnapshot.exists) {
-        print('User document exists in Firestore');
-        // Convert Firestore data to User model
-        final userData = docSnapshot.data() as Map<String, dynamic>;
+      if (userData != null) {
+        print('User profile exists in Supabase');
         
         try {
-          // Handle Timestamp conversion safely
+          // Parse dates safely
           DateTime createdAt;
           DateTime lastActive;
           
-          if (userData['createdAt'] is Timestamp) {
-            createdAt = (userData['createdAt'] as Timestamp).toDate();
-          } else if (userData['createdAt'] is String) {
-            createdAt = DateTime.parse(userData['createdAt']);
+          if (userData['created_at'] is String) {
+            createdAt = DateTime.parse(userData['created_at']);
           } else {
             createdAt = DateTime.now();
           }
           
-          if (userData['lastActive'] is Timestamp) {
-            lastActive = (userData['lastActive'] as Timestamp).toDate();
-          } else if (userData['lastActive'] is String) {
-            lastActive = DateTime.parse(userData['lastActive']);
+          if (userData['last_active'] is String) {
+            lastActive = DateTime.parse(userData['last_active']);
           } else {
             lastActive = DateTime.now();
           }
+          
+          // Get skills from the separate table
+          final skills = await _supabaseService.getUserSkills(uid);
           
           // Create user object with safe conversions
           _user = User(
             id: uid,
             name: userData['name'] ?? '',
             email: userData['email'] ?? '',
-            photoUrl: userData['photoUrl'],
+            photoUrl: userData['photo_url'],
             createdAt: createdAt,
             lastActive: lastActive,
             points: userData['points'] is int ? userData['points'] : 0,
-            skills: userData['skills'] is Map 
-                ? Map<String, double>.from(userData['skills'].map((k, v) => 
-                    MapEntry(k, v is double ? v : v is int ? v.toDouble() : 0.0))) 
-                : {},
-            completedResources: userData['completedResources'] is List 
-                ? List<String>.from(userData['completedResources']) 
+            skills: skills,
+            completedResources: userData['completed_resources'] is List 
+                ? List<String>.from(userData['completed_resources']) 
                 : [],
           );
           
@@ -93,7 +85,7 @@ class UserProvider with ChangeNotifier {
           await _storageService.saveUser(_user!);
           print('User data saved to local storage');
         } catch (e) {
-          print('Error parsing Firestore data: $e');
+          print('Error parsing Supabase data: $e');
           // Create a basic user object if parsing fails
           _user = User(
             id: uid,
@@ -105,13 +97,12 @@ class UserProvider with ChangeNotifier {
           await _storageService.saveUser(_user!);
         }
       } else {
-        print('User document does not exist in Firestore, will be created by caller');
-        // Don't set _user to null, let the caller handle creation
+        print('User profile does not exist in Supabase, will be created by caller');
         _user = null;
       }
     } catch (e) {
-      print('Error getting user data from Firestore: $e');
-      // If Firestore fails, try to get user from local storage
+      print('Error getting user data from Supabase: $e');
+      // If Supabase fails, try to get user from local storage
       _user = await _storageService.getUser();
       
       if (_user != null) {
@@ -125,20 +116,25 @@ class UserProvider with ChangeNotifier {
   Future<void> updateUser(User user) async {
     _user = user;
     
-    // Update in Firestore if logged in
-    if (_auth.currentUser != null) {
+    // Update in Supabase if logged in
+    if (_supabaseService.currentUser != null) {
       try {
-        await _firestore.collection('users').doc(user.id).update({
+        await _supabaseService.updateUserProfile(user.id, {
           'name': user.name,
           'email': user.email,
-          'lastActive': Timestamp.fromDate(DateTime.now()),
+          'last_active': DateTime.now().toIso8601String(),
           'points': user.points,
-          'skills': user.skills,
-          'completedResources': user.completedResources,
+          'completed_resources': user.completedResources,
+          'photo_url': user.photoUrl,
         });
+        
+        // Update skills separately
+        if (user.skills.isNotEmpty) {
+          await _supabaseService.updateUserSkills(user.id, user.skills);
+        }
       } catch (e) {
-        print('Error updating user in Firestore: $e');
-        // Continue with local storage even if Firestore fails
+        print('Error updating user in Supabase: $e');
+        // Continue with local storage even if Supabase fails
       }
     }
     
@@ -154,78 +150,71 @@ class UserProvider with ChangeNotifier {
       
       print('Attempting login with email: $email');
       
-      // Sign in with Firebase
-      final userCredential = await _auth.signInWithEmailAndPassword(
+      // Sign in with Supabase
+      final response = await _supabaseService.signIn(
         email: email,
         password: password,
       );
       
-      print('Firebase Auth login successful, uid: ${userCredential.user?.uid}');
+      if (response.user == null) {
+        print('Supabase Auth login failed: No user returned');
+        _isLoading = false;
+        notifyListeners();
+        return 'Login failed. Please check your credentials.';
+      }
       
-      if (userCredential.user != null) {
-        // Get user data from Firestore
-        await _getUserFromFirestore(userCredential.user!.uid);
+      final userId = response.user!.id;
+      print('Supabase Auth login successful, uid: $userId');
+      
+      // Get user data from Supabase
+      await _getUserFromSupabase(userId);
+      
+      print('User data retrieved: ${_user != null ? 'success' : 'failed'}');
+      
+      // If user profile wasn't found in Supabase, create it
+      if (_user == null) {
+        print('Creating new user profile in Supabase for login');
+        final now = DateTime.now();
         
-        print('User data retrieved: ${_user != null ? 'success' : 'failed'}');
+        _user = User(
+          id: userId,
+          name: email.split('@')[0],
+          email: email,
+          createdAt: now,
+          lastActive: now,
+          points: 0,
+          skills: {},
+          completedResources: [],
+        );
         
-        // If user data wasn't found in Firestore, create it
-        if (_user == null) {
-          print('Creating new user data in Firestore for login');
-          final now = DateTime.now();
-          final firebaseUser = userCredential.user!;
-          
-          _user = User(
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName ?? email.split('@')[0],
-            email: email,
-            createdAt: now,
-            lastActive: now,
-            points: 0,
-            skills: {},
-            completedResources: [],
-          );
-          
-          // Save to Firestore
-          try {
-            await _firestore.collection('users').doc(_user!.id).set({
-              'name': _user!.name,
-              'email': _user!.email,
-              'createdAt': Timestamp.fromDate(_user!.createdAt),
-              'lastActive': Timestamp.fromDate(_user!.lastActive),
-              'points': _user!.points,
-              'skills': _user!.skills,
-              'completedResources': _user!.completedResources,
-              'photoUrl': _user!.photoUrl,
-              'preferences': {
-                'darkMode': false,
-                'notificationsEnabled': true,
-                'voiceSpeed': 1.0,
-                'voicePitch': 1.0,
-              },
-            });
-            print('New user data saved to Firestore');
-          } catch (e) {
-            print('Error saving new user to Firestore: $e');
-          }
-          
-          // Save to local storage
-          await _storageService.saveUser(_user!);
+        // Save to Supabase
+        try {
+          await _supabaseService.updateUserProfile(userId, {
+            'name': _user!.name,
+            'email': _user!.email,
+            'created_at': _user!.createdAt.toIso8601String(),
+            'last_active': _user!.lastActive.toIso8601String(),
+            'points': _user!.points,
+            'completed_resources': _user!.completedResources,
+          });
+          print('New user profile saved to Supabase');
+        } catch (e) {
+          print('Error saving new user to Supabase: $e');
         }
         
-        // Update last active timestamp
-        if (_user != null) {
-          try {
-            await _firestore.collection('users').doc(_user!.id).update({
-              'lastActive': Timestamp.fromDate(DateTime.now()),
-            });
-            print('Last active timestamp updated');
-            
-            // Sync any local data with Firestore
-            await _storageService.syncWithFirestore();
-            print('Data synchronized with Firestore after login');
-          } catch (e) {
-            print('Error updating last active timestamp: $e');
-          }
+        // Save to local storage
+        await _storageService.saveUser(_user!);
+      }
+      
+      // Update last active timestamp
+      if (_user != null) {
+        try {
+          await _supabaseService.updateUserProfile(_user!.id, {
+            'last_active': DateTime.now().toIso8601String(),
+          });
+          print('Last active timestamp updated');
+        } catch (e) {
+          print('Error updating last active timestamp: $e');
         }
       }
       
@@ -233,88 +222,20 @@ class UserProvider with ChangeNotifier {
       notifyListeners();
       print('Login process completed, isLoggedIn: $isLoggedIn');
       return null; // Success
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.code} - ${e.message}');
-      _isLoading = false;
-      notifyListeners();
-      
-      if (e.code == 'user-not-found') {
-        return 'No user found with this email';
-      } else if (e.code == 'wrong-password') {
-        return 'Wrong password';
-      } else {
-        return e.message;
-      }
     } catch (e, stackTrace) {
       print('General login error: $e');
       print('Stack trace: $stackTrace');
       _isLoading = false;
       notifyListeners();
       
-      // Check if user is actually logged in despite the error
-      if (_auth.currentUser != null) {
-        print('Firebase user exists despite error, attempting to continue...');
-        final firebaseUser = _auth.currentUser!;
-        
-        try {
-          await _getUserFromFirestore(firebaseUser.uid);
-          
-          // If user document doesn't exist, create it
-          if (_user == null) {
-            print('Creating user document after error recovery...');
-            final now = DateTime.now();
-            
-            _user = User(
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
-              email: firebaseUser.email ?? '',
-              createdAt: now,
-              lastActive: now,
-              points: 0,
-              skills: {},
-              completedResources: [],
-            );
-            
-            // Save to Firestore
-            try {
-              await _firestore.collection('users').doc(_user!.id).set({
-                'name': _user!.name,
-                'email': _user!.email,
-                'createdAt': Timestamp.fromDate(_user!.createdAt),
-                'lastActive': Timestamp.fromDate(_user!.lastActive),
-                'points': _user!.points,
-                'skills': _user!.skills,
-                'completedResources': _user!.completedResources,
-                'photoUrl': _user!.photoUrl,
-                'preferences': {
-                  'darkMode': false,
-                  'notificationsEnabled': true,
-                  'voiceSpeed': 1.0,
-                  'voicePitch': 1.0,
-                },
-              });
-              print('User document created successfully');
-            } catch (firestoreError) {
-              print('Error creating user document: $firestoreError');
-            }
-            
-            // Save to local storage
-            await _storageService.saveUser(_user!);
-          }
-          
-          if (_user != null) {
-            print('Successfully recovered user data, login OK');
-            _isLoading = false;
-            notifyListeners();
-            return null; // Success
-          }
-        } catch (e2) {
-          print('Failed to retrieve/create user data: $e2');
-        }
+      // Check if it's an authentication error
+      final errorMessage = e.toString().toLowerCase();
+      if (errorMessage.contains('invalid login credentials')) {
+        return 'Invalid email or password';
+      } else if (errorMessage.contains('email not confirmed')) {
+        return 'Please verify your email before logging in';
       }
       
-      _isLoading = false;
-      notifyListeners();
       return 'An error occurred during login. Please try again.';
     }
   }
@@ -326,93 +247,57 @@ class UserProvider with ChangeNotifier {
       
       print('Attempting signup with email: $email, name: $name');
       
-      // Create user in Firebase Auth
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      // Create user in Supabase Auth and database
+      final response = await _supabaseService.signUp(
         email: email,
         password: password,
+        name: name,
       );
       
-      print('Firebase Auth signup successful, uid: ${userCredential.user?.uid}');
-      
-      if (userCredential.user != null) {
-        // Create user data in Firestore
-        final now = DateTime.now();
-        _user = User(
-          id: userCredential.user!.uid,
-          name: name,
-          email: email,
-          createdAt: now,
-          lastActive: now,
-          points: 0,
-          skills: {},
-          completedResources: [],
-        );
-        
-        // Save to Firestore
-        try {
-          print('Creating user document in Firestore');
-          await _firestore.collection('users').doc(_user!.id).set({
-            'name': _user!.name,
-            'email': _user!.email,
-            'createdAt': Timestamp.fromDate(_user!.createdAt),
-            'lastActive': Timestamp.fromDate(_user!.lastActive),
-            'points': _user!.points,
-            'skills': _user!.skills,
-            'completedResources': _user!.completedResources,
-            'preferences': {
-              'darkMode': false,
-              'notificationsEnabled': true,
-              'voiceSpeed': 1.0,
-              'voicePitch': 1.0,
-            },
-          });
-          print('User document created successfully in Firestore');
-          
-          // Initialize collections for debates and resources
-          // This ensures the collections exist even if empty
-          await _firestore.collection('users').doc(_user!.id).collection('debates').doc('placeholder').set({
-            'isPlaceholder': true,
-            'createdAt': Timestamp.fromDate(now)
-          });
-          await _firestore.collection('users').doc(_user!.id).collection('resources').doc('placeholder').set({
-            'isPlaceholder': true,
-            'createdAt': Timestamp.fromDate(now)
-          });
-          print('Initialized subcollections in Firestore');
-        } catch (e) {
-          print('Error creating user document in Firestore: $e');
-          // Continue even if Firestore fails
-        }
-        
-        // Save to local storage
-        await _storageService.saveUser(_user!);
-        print('User saved to local storage');
-        
-        // Sync any existing local data with Firestore
-        await _storageService.syncWithFirestore();
-        print('Local data synchronized with Firestore after signup');
+      if (response.user == null) {
+        print('Supabase Auth signup failed: No user returned');
+        _isLoading = false;
+        notifyListeners();
+        return 'Signup failed. Please try again.';
       }
+      
+      print('Supabase Auth signup successful, uid: ${response.user!.id}');
+      
+      // Create user object
+      final now = DateTime.now();
+      _user = User(
+        id: response.user!.id,
+        name: name,
+        email: email,
+        createdAt: now,
+        lastActive: now,
+        points: 0,
+        skills: {},
+        completedResources: [],
+      );
+      
+      // Note: User profile is already created in SupabaseService.signUp()
+      // Just save to local storage
+      await _storageService.saveUser(_user!);
+      print('User saved to local storage');
       
       _isLoading = false;
       notifyListeners();
       print('Signup process completed, isLoggedIn: $isLoggedIn');
       return null; // Success
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception during signup: ${e.code} - ${e.message}');
-      _isLoading = false;
-      notifyListeners();
-      
-      if (e.code == 'email-already-in-use') {
-        return 'This email is already registered';
-      } else if (e.code == 'weak-password') {
-        return 'Password is too weak';
-      } else {
-        return e.message;
-      }
     } catch (e) {
       print('General signup error: $e');
       _isLoading = false;
       notifyListeners();
+      
+      // Check for common signup errors
+      final errorMessage = e.toString().toLowerCase();
+      if (errorMessage.contains('user already registered')) {
+        return 'This email is already registered';
+      } else if (errorMessage.contains('password')) {
+        return 'Password is too weak';
+      }
+      
       return 'An error occurred: $e';
     }
   }
@@ -422,23 +307,19 @@ class UserProvider with ChangeNotifier {
       _isLoading = true;
       notifyListeners();
       
-      // Update last active time in Firestore before signing out
+      // Update last active time in Supabase before signing out
       if (_user != null) {
         try {
-          await _firestore.collection('users').doc(_user!.id).update({
-            'lastActive': Timestamp.fromDate(DateTime.now()),
+          await _supabaseService.updateUserProfile(_user!.id, {
+            'last_active': DateTime.now().toIso8601String(),
           });
           print('Last active timestamp updated before logout');
-          
-          // Make sure all data is synced before signing out
-          await _storageService.syncWithFirestore();
-          print('Final data sync completed before logout');
         } catch (e) {
           print('Error updating data before logout: $e');
         }
       }
       
-      await _auth.signOut();
+      await _supabaseService.signOut();
       _user = null;
       await _storageService.clearUser();
       

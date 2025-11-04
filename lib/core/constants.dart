@@ -37,6 +37,7 @@ class AppConstants {
     'Logic',
     'Rebuttal Quality',
     'Persuasiveness',
+    'Communication',
   ];
   
   // Storage Keys
