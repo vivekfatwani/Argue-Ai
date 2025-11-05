@@ -335,7 +335,7 @@ class UserProvider with ChangeNotifier {
       print('Firebase Auth signup successful, uid: ${userCredential.user?.uid}');
       
       if (userCredential.user != null) {
-        // Create user data in Firestore
+        // Create user data locally
         final now = DateTime.now();
         _user = User(
           id: userCredential.user!.uid,
@@ -348,49 +348,9 @@ class UserProvider with ChangeNotifier {
           completedResources: [],
         );
         
-        // Save to Firestore
-        try {
-          print('Creating user document in Firestore');
-          await _firestore.collection('users').doc(_user!.id).set({
-            'name': _user!.name,
-            'email': _user!.email,
-            'createdAt': Timestamp.fromDate(_user!.createdAt),
-            'lastActive': Timestamp.fromDate(_user!.lastActive),
-            'points': _user!.points,
-            'skills': _user!.skills,
-            'completedResources': _user!.completedResources,
-            'preferences': {
-              'darkMode': false,
-              'notificationsEnabled': true,
-              'voiceSpeed': 1.0,
-              'voicePitch': 1.0,
-            },
-          });
-          print('User document created successfully in Firestore');
-          
-          // Initialize collections for debates and resources
-          // This ensures the collections exist even if empty
-          await _firestore.collection('users').doc(_user!.id).collection('debates').doc('placeholder').set({
-            'isPlaceholder': true,
-            'createdAt': Timestamp.fromDate(now)
-          });
-          await _firestore.collection('users').doc(_user!.id).collection('resources').doc('placeholder').set({
-            'isPlaceholder': true,
-            'createdAt': Timestamp.fromDate(now)
-          });
-          print('Initialized subcollections in Firestore');
-        } catch (e) {
-          print('Error creating user document in Firestore: $e');
-          // Continue even if Firestore fails
-        }
-        
-        // Save to local storage
+        // Save to local storage (Firestore disabled)
         await _storageService.saveUser(_user!);
         print('User saved to local storage');
-        
-        // Sync any existing local data with Firestore
-        await _storageService.syncWithFirestore();
-        print('Local data synchronized with Firestore after signup');
       }
       
       _isLoading = false;
@@ -409,8 +369,35 @@ class UserProvider with ChangeNotifier {
       } else {
         return e.message;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('General signup error: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Check if user was created despite error
+      if (_auth.currentUser != null) {
+        print('User exists in Firebase Auth despite error, creating local profile...');
+        final firebaseUser = _auth.currentUser!;
+        final now = DateTime.now();
+        
+        _user = User(
+          id: firebaseUser.uid,
+          name: name,
+          email: email,
+          createdAt: now,
+          lastActive: now,
+          points: 0,
+          skills: {},
+          completedResources: [],
+        );
+        
+        await _storageService.saveUser(_user!);
+        print('User profile created locally after error recovery');
+        
+        _isLoading = false;
+        notifyListeners();
+        return null; // Success after recovery
+      }
+      
       _isLoading = false;
       notifyListeners();
       return 'An error occurred: $e';
