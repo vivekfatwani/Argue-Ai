@@ -15,6 +15,9 @@ class StorageService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   
+  // Flag to disable Firestore/Storage (when billing is not enabled)
+  final bool _useFirestore = false;
+  
   // Initialize the storage service
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -54,8 +57,8 @@ class StorageService {
   Future<List<Debate>> getDebateHistory() async {
     List<Debate> debates = [];
     
-    // Try to get debates from Firestore first if user is logged in
-    if (isAuthenticated) {
+    // Try to get debates from Firestore first if user is logged in AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final snapshot = await _firestore
@@ -90,7 +93,7 @@ class StorageService {
       }
     }
     
-    // If no debates found in Firestore or user is not logged in, try local storage
+    // If no debates found in Firestore or Firestore disabled, try local storage
     if (debates.isEmpty) {
       final historyJson = _prefs.getString(AppConstants.keyDebateHistory);
       if (historyJson != null) {
@@ -124,8 +127,8 @@ class StorageService {
       jsonEncode(history.map((d) => d.toJson()).toList()),
     );
     
-    // Also save to Firestore if user is authenticated
-    if (isAuthenticated) {
+    // Also save to Firestore if user is authenticated AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final debateMap = debate.toJson();
@@ -206,8 +209,8 @@ class StorageService {
       'structure': 0.0,
     };
     
-    // Try to get skills from Firestore first if user is logged in
-    if (isAuthenticated) {
+    // Try to get skills from Firestore first if user is logged in AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final docSnapshot = await _firestore.collection('users').doc(userId).get();
@@ -245,8 +248,8 @@ class StorageService {
       jsonEncode(skills),
     );
     
-    // Also save to Firestore if user is authenticated
-    if (isAuthenticated) {
+    // Also save to Firestore if user is authenticated AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         await _firestore.collection('users').doc(userId).update({
@@ -266,8 +269,8 @@ class StorageService {
   Future<List<LearningResource>> getLearningResources() async {
     List<LearningResource> resources = [];
     
-    // Try to get resources from Firestore first if user is logged in
-    if (isAuthenticated) {
+    // Try to get resources from Firestore first if user is logged in AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final snapshot = await _firestore
@@ -318,8 +321,8 @@ class StorageService {
       jsonEncode(resources.map((r) => r.toJson()).toList()),
     );
     
-    // Also save to Firestore if user is authenticated
-    if (isAuthenticated) {
+    // Also save to Firestore if user is authenticated AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final batch = _firestore.batch();
@@ -361,8 +364,8 @@ class StorageService {
         jsonEncode(resources.map((r) => r.toJson()).toList()),
       );
       
-      // Also update in Firestore if user is authenticated
-      if (isAuthenticated) {
+      // Also update in Firestore if user is authenticated AND Firestore is enabled
+      if (_useFirestore && isAuthenticated) {
         try {
           final userId = currentUserId!;
           await _firestore
@@ -403,8 +406,8 @@ class StorageService {
       'voicePitch': 1.0,
     };
     
-    // Try to get preferences from Firestore first if user is logged in
-    if (isAuthenticated) {
+    // Try to get preferences from Firestore first if user is logged in AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         final docSnapshot = await _firestore.collection('users').doc(userId).get();
@@ -440,8 +443,8 @@ class StorageService {
       jsonEncode(preferences),
     );
     
-    // Also save to Firestore if user is authenticated
-    if (isAuthenticated) {
+    // Also save to Firestore if user is authenticated AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         await _firestore.collection('users').doc(userId).update({
@@ -459,7 +462,7 @@ class StorageService {
   
   // Sync local data with Firestore
   Future<bool> syncWithFirestore() async {
-    if (!isAuthenticated) return false;
+    if (!_useFirestore || !isAuthenticated) return false;
     
     try {
       final userId = currentUserId!;
@@ -514,8 +517,8 @@ class StorageService {
   Future<bool> clearAllData() async {
     bool success = await _prefs.clear();
     
-    // Also delete user data from Firestore if authenticated
-    if (isAuthenticated) {
+    // Also delete user data from Firestore if authenticated AND Firestore is enabled
+    if (_useFirestore && isAuthenticated) {
       try {
         final userId = currentUserId!;
         

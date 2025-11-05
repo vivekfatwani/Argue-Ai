@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "445118184031",
-    "project_id": "aicoach-6950b",
-    "storage_bucket": "aicoach-6950b.firebasestorage.app"
+    "project_number": "1054053533745",
+    "project_id": "argueai-2f86d",
+    "storage_bucket": "argueai-2f86d.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:445118184031:android:40b0b1cb9844ab2d9c39ea",
+        "mobilesdk_app_id": "1:1054053533745:android:914ab0ba3fe0e8ca39ad10",
         "android_client_info": {
           "package_name": "com.example.argumentor"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDO_y0ij-sCsFZW39zkRV_vOez3pmpBfIs"
+          "current_key": "AIzaSyA39nniLvitgPtnndoQdJOEfu7KZSgBynk"
         }
       ],
       "services": {
