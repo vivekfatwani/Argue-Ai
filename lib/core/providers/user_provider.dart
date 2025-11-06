@@ -10,6 +10,9 @@ class UserProvider with ChangeNotifier {
   bool _isLoading = true;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Auth uses Firebase, but data storage is local only
+  static const bool _useFirestore = false; // Keep false for local-only storage
 
   UserProvider(this._storageService) {
     _initializeUser();
@@ -23,15 +26,36 @@ class UserProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     
-    // Check if there's a Firebase user already logged in
+    // Check if there's a Firebase user already logged in (authentication only)
     final firebaseUser = _auth.currentUser;
     
     if (firebaseUser != null) {
-      // User is logged in, get their data from Firestore
-      await _getUserFromFirestore(firebaseUser.uid);
-    } else {
-      // No Firebase user, try to get from local storage
+      // User is authenticated, load their data from local storage
       _user = await _storageService.getUser();
+      
+      if (_user != null) {
+        print('Retrieved user from local storage: ${_user!.name}');
+      } else {
+        // User authenticated but no local data - shouldn't happen normally
+        // Create a basic profile from Firebase Auth data
+        print('Creating local profile for authenticated user');
+        final now = DateTime.now();
+        _user = User(
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+          email: firebaseUser.email ?? '',
+          createdAt: now,
+          lastActive: now,
+          points: 0,
+          skills: {},
+          completedResources: [],
+        );
+        await _storageService.saveUser(_user!);
+      }
+    } else {
+      // No authenticated user
+      _user = null;
+      print('No authenticated user');
     }
     
     _isLoading = false;
@@ -125,8 +149,8 @@ class UserProvider with ChangeNotifier {
   Future<void> updateUser(User user) async {
     _user = user;
     
-    // Update in Firestore if logged in
-    if (_auth.currentUser != null) {
+    // Update in Firestore if logged in (only if enabled)
+    if (_auth.currentUser != null && _useFirestore) {
       try {
         await _firestore.collection('users').doc(user.id).update({
           'name': user.name,
@@ -142,8 +166,9 @@ class UserProvider with ChangeNotifier {
       }
     }
     
-    // Also update in local storage
+    // Always update in local storage
     await _storageService.saveUser(user);
+    print('User updated in local storage');
     notifyListeners();
   }
 
@@ -154,7 +179,7 @@ class UserProvider with ChangeNotifier {
       
       print('Attempting login with email: $email');
       
-      // Sign in with Firebase
+      // Sign in with Firebase Auth (authentication only)
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -163,14 +188,14 @@ class UserProvider with ChangeNotifier {
       print('Firebase Auth login successful, uid: ${userCredential.user?.uid}');
       
       if (userCredential.user != null) {
-        // Get user data from Firestore
-        await _getUserFromFirestore(userCredential.user!.uid);
+        // Try to get from local storage first
+        _user = await _storageService.getUser();
         
-        print('User data retrieved: ${_user != null ? 'success' : 'failed'}');
+        print('User data retrieved from local storage: ${_user != null ? 'success' : 'not found'}');
         
-        // If user data wasn't found in Firestore, create it
+        // If no local data exists, create new user profile locally
         if (_user == null) {
-          print('Creating new user data in Firestore for login');
+          print('Creating new local user profile');
           final now = DateTime.now();
           final firebaseUser = userCredential.user!;
           
@@ -185,47 +210,15 @@ class UserProvider with ChangeNotifier {
             completedResources: [],
           );
           
-          // Save to Firestore
-          try {
-            await _firestore.collection('users').doc(_user!.id).set({
-              'name': _user!.name,
-              'email': _user!.email,
-              'createdAt': Timestamp.fromDate(_user!.createdAt),
-              'lastActive': Timestamp.fromDate(_user!.lastActive),
-              'points': _user!.points,
-              'skills': _user!.skills,
-              'completedResources': _user!.completedResources,
-              'photoUrl': _user!.photoUrl,
-              'preferences': {
-                'darkMode': false,
-                'notificationsEnabled': true,
-                'voiceSpeed': 1.0,
-                'voicePitch': 1.0,
-              },
-            });
-            print('New user data saved to Firestore');
-          } catch (e) {
-            print('Error saving new user to Firestore: $e');
-          }
-          
-          // Save to local storage
+          // Save to local storage only
           await _storageService.saveUser(_user!);
-        }
-        
-        // Update last active timestamp
-        if (_user != null) {
-          try {
-            await _firestore.collection('users').doc(_user!.id).update({
-              'lastActive': Timestamp.fromDate(DateTime.now()),
-            });
-            print('Last active timestamp updated');
-            
-            // Sync any local data with Firestore
-            await _storageService.syncWithFirestore();
-            print('Data synchronized with Firestore after login');
-          } catch (e) {
-            print('Error updating last active timestamp: $e');
-          }
+          print('User profile saved to local storage');
+        } else {
+          // Update last active time in local storage
+          final updatedUser = _user!.copyWith(lastActive: DateTime.now());
+          await _storageService.saveUser(updatedUser);
+          _user = updatedUser;
+          print('Last active timestamp updated in local storage');
         }
       }
       
@@ -406,33 +399,53 @@ class UserProvider with ChangeNotifier {
 
   Future<void> logout() async {
     try {
+      print('=== LOGOUT START ===');
       _isLoading = true;
       notifyListeners();
       
-      // Update last active time in Firestore before signing out
-      if (_user != null) {
+      // Update last active time in Firestore before signing out (only if enabled)
+      if (_user != null && _useFirestore) {
         try {
           await _firestore.collection('users').doc(_user!.id).update({
             'lastActive': Timestamp.fromDate(DateTime.now()),
-          });
+          }).timeout(const Duration(seconds: 3));
           print('Last active timestamp updated before logout');
           
           // Make sure all data is synced before signing out
-          await _storageService.syncWithFirestore();
+          await _storageService.syncWithFirestore().timeout(const Duration(seconds: 3));
           print('Final data sync completed before logout');
         } catch (e) {
-          print('Error updating data before logout: $e');
+          print('Error updating data before logout: $e - continuing anyway');
+          // Don't let Firestore errors block logout
         }
       }
       
-      await _auth.signOut();
+      // Sign out from Firebase Auth
+      try {
+        await _auth.signOut();
+        print('Firebase signOut completed');
+      } catch (e) {
+        print('Error signing out from Firebase: $e');
+      }
+      
       _user = null;
-      await _storageService.clearUser();
+      print('User set to null, isLoggedIn: $isLoggedIn');
+      
+      // Clear local storage
+      try {
+        await _storageService.clearUser();
+        print('Local storage cleared');
+      } catch (e) {
+        print('Error clearing local storage: $e');
+      }
       
       _isLoading = false;
       notifyListeners();
+      print('=== LOGOUT COMPLETE, notifyListeners called ===');
     } catch (e) {
       print('Error during logout: $e');
+      // Even if there's an error, still try to clear user state
+      _user = null;
       _isLoading = false;
       notifyListeners();
     }

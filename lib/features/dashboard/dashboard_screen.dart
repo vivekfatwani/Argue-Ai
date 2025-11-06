@@ -2412,14 +2412,16 @@ Download ArgueAI and improve your debate skills!""";
   
   // Show sign out confirmation dialog
   void _showSignOutDialog(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sign Out'),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -2427,12 +2429,29 @@ Download ArgueAI and improve your debate skills!""";
               backgroundColor: Colors.red.shade300,
               foregroundColor: Colors.white,
             ),
-            onPressed: () {
-              Navigator.pop(context);
-              // Handle sign out
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sign out functionality coming soon')),
+            onPressed: () async {
+              // Close dialog first
+              Navigator.of(dialogContext).pop();
+              
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => const Center(
+                  child: CircularProgressIndicator(),
+                ),
               );
+              
+              // Sign out user
+              await userProvider.logout();
+              
+              // Close loading indicator
+              if (context.mounted) {
+                Navigator.of(context).pop();
+                
+                // Navigate to onboarding
+                context.go(AppConstants.routeOnboarding);
+              }
             },
             child: const Text('Sign Out'),
           ),

@@ -40,7 +40,7 @@ class AIService {
       
       final formattedHistory = history.map((msg) {
         return Content.text(
-          msg.isUser ? "User: ${msg.content}" : "AI: ${msg.content}"
+          msg.isUser ? "User: ${msg.content}" : "Assistant: ${msg.content}"
         );
       }).toList();
       
@@ -104,7 +104,7 @@ Your response:
   Future<Map<String, dynamic>> generateDebateFeedback(String topic, List<DebateMessage> messages) async {
     try {
       final transcript = messages.map((msg) {
-        return "${msg.isUser ? 'User' : 'AI'}: ${msg.content}";
+        return "${msg.isUser ? 'User' : 'Assistant'}: ${msg.content}";
       }).join("\n\n");
       
       final prompt = """

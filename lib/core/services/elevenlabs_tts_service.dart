@@ -15,7 +15,7 @@ import 'package:audioplayers/audioplayers.dart';
 class ElevenLabsTTS {
   // TODO: Add your ElevenLabs API key here
   // Get it from: https://elevenlabs.io/app/settings/api-keys
-  static const String API_KEY = 'sk_f290a72500b801529847186d6deaf1be840ba5ac7a74a73e';
+  static const String API_KEY = 'e62d2878cbcb168b6508b8535ef2916ad60a24e47962549f4200482c629f6ad3';
   
   // Voice IDs (pre-selected professional voices)
   static const String VOICE_ADAM = 'pNInz6obpgDQGcFmaJgB'; // Professional male - authoritative

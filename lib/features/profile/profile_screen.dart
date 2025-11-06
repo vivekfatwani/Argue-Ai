@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/providers/audio_provider.dart';
+import '../../core/constants.dart';
 import '../../core/utils.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -153,7 +155,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         leading: const Icon(Icons.logout),
                         title: const Text('Logout'),
                         onTap: () async {
-                          await userProvider.logout();
+                          // Show confirmation dialog
+                          final shouldLogout = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Sign Out'),
+                              content: const Text('Are you sure you want to sign out?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dialogContext, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: () => Navigator.pop(dialogContext, true),
+                                  child: const Text('Sign Out'),
+                                ),
+                              ],
+                            ),
+                          );
+                          
+                          if (shouldLogout == true && context.mounted) {
+                            // Show loading indicator
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (ctx) => const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                            
+                            // Sign out user
+                            await userProvider.logout();
+                            
+                            // Close loading indicator
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                              
+                              // Navigate to onboarding
+                              context.go(AppConstants.routeOnboarding);
+                            }
+                          }
                         },
                       ),
                     ],
