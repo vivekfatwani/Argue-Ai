@@ -354,6 +354,10 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildSkillsCard(BuildContext context, Map<String, double>? skills) {
     final defaultSkills = {
       'Clarity': 0.0,
+      'Coherence': 0.0,
+      'Articulation': 0.0,
+      'Engagement': 0.0,
+      'Tone': 0.0,
       'Logic': 0.0,
       'Rebuttal Quality': 0.0,
       'Persuasiveness': 0.0,

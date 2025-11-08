@@ -15,8 +15,8 @@ class StorageService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   
-  // Firebase Auth is used for login, but data storage is local only
-  final bool _useFirestore = false; // Keep false for local-only storage
+  // Flag to disable Firestore/Storage (when billing is not enabled)
+  final bool _useFirestore = false;
   
   // Initialize the storage service
   Future<void> init() async {

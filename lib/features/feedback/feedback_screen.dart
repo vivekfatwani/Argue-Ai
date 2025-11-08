@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 import '../../core/constants.dart';
 import '../../core/providers/debate_provider.dart';
@@ -375,6 +374,25 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
     final improvements = List<String>.from(_feedback!['improvements']);
     final overallFeedback = _feedback!['overallFeedback'];
 
+    // Separate skills into categories
+    final communicationSkills = {
+      'Clarity': skillRatings['clarity'] ?? 0.0,
+      'Coherence': skillRatings['coherence'] ?? 0.0,
+      'Articulation': skillRatings['articulation'] ?? 0.0,
+      'Engagement': skillRatings['engagement'] ?? 0.0,
+      'Tone': skillRatings['tone'] ?? 0.0,
+    };
+
+    final argumentationSkills = {
+      'Logic': skillRatings['logic'] ?? 0.0,
+      'Rebuttal Quality': skillRatings['rebuttalQuality'] ?? 0.0,
+      'Persuasiveness': skillRatings['persuasiveness'] ?? 0.0,
+    };
+
+    // Calculate category averages
+    final communicationAvg = communicationSkills.values.reduce((a, b) => a + b) / communicationSkills.length;
+    final argumentationAvg = argumentationSkills.values.reduce((a, b) => a + b) / argumentationSkills.length;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -405,13 +423,72 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
           ),
           const SizedBox(height: 24),
 
-          // Skill breakdown
+          // Category Performance Overview
+          Row(
+            children: [
+              Expanded(
+                child: _buildCategoryCard(
+                  context,
+                  'Communication',
+                  communicationAvg,
+                  Icons.chat_bubble_outline,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildCategoryCard(
+                  context,
+                  'Argumentation',
+                  argumentationAvg,
+                  Icons.psychology,
+                  Colors.purple,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Communication Metrics Section
           Text(
-            'Skill Breakdown',
+            'Communication Metrics',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
+          const SizedBox(height: 8),
+          Text(
+            'How effectively you express and convey your ideas',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+            ),
+          ),
           const SizedBox(height: 16),
-          _buildRadarChart(skillRatings),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildSkillBars(communicationSkills),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Argumentation Metrics Section
+          Text(
+            'Argumentation Metrics',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'The quality and strength of your debate arguments',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildSkillBars(argumentationSkills),
+            ),
+          ),
           const SizedBox(height: 24),
 
           // Detailed feedback
@@ -514,44 +591,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildRadarChart(Map<String, double> skillRatings) {
-    final data = skillRatings.entries.toList();
-    
-    return Column(
-      children: data.map((entry) {
-        final skill = entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1);
-        final value = entry.value;
-        
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    skill,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text('${(value * 100).toStringAsFixed(0)}%'),
-                ],
-              ),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: value,
-                backgroundColor: Colors.grey[300],
-                minHeight: 10,
-                borderRadius: BorderRadius.circular(5),
-                color: _getScoreColor(value),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildFeedbackItem(String text, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -566,6 +605,153 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
         ],
       ),
     );
+  }
+
+  Widget _buildCategoryCard(BuildContext context, String title, double score, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(score * 100).toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: _getScoreColor(score),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _getScoreLabel(score),
+              style: TextStyle(
+                fontSize: 12,
+                color: _getScoreColor(score),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillBars(Map<String, double> skills) {
+    return Column(
+      children: skills.entries.map((entry) {
+        final skill = entry.key;
+        final value = entry.value;
+        final skillInfo = _getSkillInfo(skill);
+        
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(skillInfo['icon'] as IconData, size: 18, color: Colors.grey[700]),
+                      const SizedBox(width: 8),
+                      Text(
+                        skill,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${(value * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _getScoreColor(value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(
+                value: value,
+                backgroundColor: Colors.grey[300],
+                minHeight: 10,
+                borderRadius: BorderRadius.circular(5),
+                color: _getScoreColor(value),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                skillInfo['description'] as String,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Map<String, dynamic> _getSkillInfo(String skill) {
+    switch (skill.toLowerCase().replaceAll(' ', '')) {
+      case 'clarity':
+        return {
+          'icon': Icons.lightbulb_outline,
+          'description': 'How clear and understandable your communication is',
+        };
+      case 'coherence':
+        return {
+          'icon': Icons.linear_scale,
+          'description': 'How well your ideas flow together logically',
+        };
+      case 'articulation':
+        return {
+          'icon': Icons.record_voice_over,
+          'description': 'How well-structured your sentences and expressions are',
+        };
+      case 'engagement':
+        return {
+          'icon': Icons.connect_without_contact,
+          'description': 'How engaging and interesting your communication style is',
+        };
+      case 'tone':
+        return {
+          'icon': Icons.sentiment_satisfied_alt,
+          'description': 'How appropriate, respectful, and confident your tone is',
+        };
+      case 'logic':
+        return {
+          'icon': Icons.psychology,
+          'description': 'How well-reasoned and evidence-based your arguments are',
+        };
+      case 'rebuttalquality':
+        return {
+          'icon': Icons.gavel,
+          'description': 'How effectively you address opposing viewpoints',
+        };
+      case 'persuasiveness':
+        return {
+          'icon': Icons.campaign,
+          'description': 'How convincing your arguments are overall',
+        };
+      default:
+        return {
+          'icon': Icons.school,
+          'description': 'Skill assessment',
+        };
+    }
   }
 
   Color _getScoreColor(double score) {

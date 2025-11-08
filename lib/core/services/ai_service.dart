@@ -107,23 +107,87 @@ Your response:
         return "${msg.isUser ? 'User' : 'Assistant'}: ${msg.content}";
       }).join("\n\n");
       
+      // STRICT ANALYSIS for learning
+      final userMessages = messages.where((m) => m.isUser).toList();
+      final userMessageCount = userMessages.length;
+      final totalWords = userMessages.fold(0, (sum, msg) => sum + msg.content.split(RegExp(r'\s+')).length);
+      final avgWordsPerMessage = userMessageCount > 0 ? totalWords / userMessageCount : 0;
+      final allUserText = userMessages.map((m) => m.content.toLowerCase()).join(' ');
+      
+      // Count unique words for vocabulary check
+      final uniqueWords = <String>{};
+      for (final msg in userMessages) {
+        uniqueWords.addAll(msg.content.toLowerCase().split(RegExp(r'[^\w]+')).where((w) => w.isNotEmpty));
+      }
+      
+      // CRITICAL: Detect contradictions
+      bool hasContradiction = false;
+      final positiveWords = ['beneficial', 'good', 'agree', 'support', 'yes', 'positive', 'helpful', 'useful', 'advantage'];
+      final negativeWords = ['harmful', 'bad', 'disagree', 'oppose', 'no', 'negative', 'problem', 'lazy', 'dangerous', 'worse'];
+      
+      int positiveCount = positiveWords.where((w) => allUserText.contains(w)).length;
+      int negativeCount = negativeWords.where((w) => allUserText.contains(w)).length;
+      
+      if (positiveCount > 0 && negativeCount > 0) {
+        hasContradiction = true;
+      }
+      
+      // Detect logical connectors
+      final logicalConnectors = ['because', 'therefore', 'thus', 'since', 'hence', 'however'];
+      int connectorCount = logicalConnectors.where((c) => allUserText.contains(c)).length;
+      
+      // Check for meaningless input
+      bool isMeaningless = totalWords < 5 || uniqueWords.length < 3;
+      
       final prompt = """
-Analyze the following debate on the topic: "$topic".
+You are a VERY STRICT debate coach for a LEARNING platform. Give HARSH but HONEST scores to help users improve.
 
-Debate Transcript:
+Topic: "$topic"
+Transcript:
 $transcript
 
-Provide feedback on the user's debating skills in the following JSON format:
+ANALYSIS:
+- Messages: $userMessageCount
+- Total words: $totalWords
+- Avg words/message: ${avgWordsPerMessage.toStringAsFixed(1)}
+- Unique words: ${uniqueWords.length}
+- Logical connectors: $connectorCount
+- **CONTRADICTION: ${hasContradiction ? 'YES - argues both sides!' : 'NO'}**
+- **MEANINGLESS: ${isMeaningless ? 'YES - too brief!' : 'NO'}**
+
+STRICT LEARNING SCALE (Be HARSH):
+0.0-0.2: Terrible - contradictions, nonsense, no effort
+0.2-0.35: Very Poor - major flaws
+0.35-0.45: Poor - weak arguments
+0.45-0.52: Below Average - basic attempt
+0.52-0.60: Average - single decent argument
+0.60-0.70: Above Average - multiple good arguments
+0.70-0.80: Strong - well-developed arguments
+0.80-1.0: Exceptional - rare, near-perfect
+
+CRITICAL PENALTIES:
+- Contradiction (both pro AND con): Logic=0.10, Coherence=0.10, Persuasion=0.15
+- Meaningless (<5 words): ALL skills=0.20
+- Single message: MAX 0.50 overall
+- No connectors: Logic MAX 0.45
+
+BE HARSH - this is for learning! A simple argument should get ~0.42-0.48, NOT 0.75!
+
+Return ONLY JSON:
 {
   "skillRatings": {
-    "clarity": 0.0 to 1.0,
-    "logic": 0.0 to 1.0,
-    "rebuttalQuality": 0.0 to 1.0,
-    "persuasiveness": 0.0 to 1.0
+    "clarity": <0.0-1.0>,
+    "logic": <0.0-1.0>,
+    "rebuttalQuality": <0.0-1.0>,
+    "persuasiveness": <0.0-1.0>,
+    "coherence": <0.0-1.0>,
+    "articulation": <0.0-1.0>,
+    "engagement": <0.0-1.0>,
+    "tone": <0.0-1.0>
   },
-  "strengths": ["strength1", "strength2", "strength3"],
-  "improvements": ["improvement1", "improvement2", "improvement3"],
-  "overallFeedback": "A paragraph of overall feedback"
+  "strengths": ["<if any>"],
+  "improvements": ["<specific issue>", "<another>"],
+  "overallFeedback": "<harsh honest feedback>"
 }
 """;
       
@@ -136,53 +200,129 @@ Provide feedback on the user's debating skills in the following JSON format:
       developer.log("Feedback response: $feedbackText", name: 'AIService');
       
       try {
-        // First try to parse the entire response as JSON
-        try {
-          final Map<String, dynamic> parsedJson = json.decode(feedbackText);
-          developer.log("Successfully parsed complete JSON response", name: 'AIService');
-          return parsedJson;
-        } catch (_) {
-          // If that fails, try to extract JSON from the text
-          final jsonStart = feedbackText.indexOf('{');
-          final jsonEnd = feedbackText.lastIndexOf('}') + 1;
+        final jsonStart = feedbackText.indexOf('{');
+        final jsonEnd = feedbackText.lastIndexOf('}') + 1;
+        
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+          final jsonStr = feedbackText.substring(jsonStart, jsonEnd);
+          final Map<String, dynamic> parsedJson = json.decode(jsonStr);
           
-          if (jsonStart >= 0 && jsonEnd > jsonStart) {
-            final jsonStr = feedbackText.substring(jsonStart, jsonEnd);
-            developer.log("Extracted JSON string: $jsonStr", name: 'AIService');
-            final Map<String, dynamic> parsedJson = json.decode(jsonStr);
+          // APPLY STRICT HARD CAPS
+          if (parsedJson.containsKey('skillRatings')) {
+            final ratings = parsedJson['skillRatings'] as Map<String, dynamic>;
+            
+            if (isMeaningless) {
+              // Almost no content - maximum 0.20
+              ratings.forEach((key, value) {
+                if (value > 0.20) ratings[key] = 0.20;
+              });
+            } else if (hasContradiction) {
+              // Catastrophic failure - maximum penalties
+              if (ratings['logic'] > 0.10) ratings['logic'] = 0.10;
+              if (ratings['coherence'] > 0.10) ratings['coherence'] = 0.10;
+              if (ratings['persuasiveness'] > 0.15) ratings['persuasiveness'] = 0.15;
+              if (ratings['clarity'] > 0.30) ratings['clarity'] = 0.30;
+              if (ratings['articulation'] > 0.35) ratings['articulation'] = 0.35;
+              if (ratings['engagement'] > 0.30) ratings['engagement'] = 0.30;
+              if (ratings['tone'] > 0.40) ratings['tone'] = 0.40;
+              if (ratings['rebuttalQuality'] > 0.30) ratings['rebuttalQuality'] = 0.30;
+            } else {
+              // Normal caps - STRICT
+              if (userMessageCount == 1) {
+                // Single message - cap at 0.50
+                if (ratings['rebuttalQuality'] > 0.38) ratings['rebuttalQuality'] = 0.38;
+                ratings.forEach((key, value) {
+                  if (key != 'rebuttalQuality' && key != 'tone' && value > 0.50) {
+                    ratings[key] = 0.50;
+                  }
+                });
+              }
+              
+              if (avgWordsPerMessage < 10) {
+                // Very brief - cap at 0.42
+                if (ratings['clarity'] > 0.42) ratings['clarity'] = 0.42;
+                if (ratings['persuasiveness'] > 0.42) ratings['persuasiveness'] = 0.42;
+                if (ratings['articulation'] > 0.42) ratings['articulation'] = 0.42;
+              }
+              
+              if (connectorCount == 0) {
+                // No logical structure - cap logic
+                if (ratings['logic'] > 0.45) ratings['logic'] = 0.45;
+              }
+            }
+          }
+          
+          // Validate that all required fields exist
+          if (parsedJson.containsKey('skillRatings') &&
+              parsedJson.containsKey('strengths') &&
+              parsedJson.containsKey('improvements') &&
+              parsedJson.containsKey('overallFeedback')) {
             return parsedJson;
           } else {
-            throw Exception("Could not find valid JSON in response");
+            developer.log("Parsed JSON missing required fields: ${parsedJson.keys}", name: 'AIService');
           }
         }
       } catch (jsonError) {
-        developer.log("Error parsing JSON feedback: $jsonError", name: 'AIService');
-        developer.log("Raw response: $feedbackText", name: 'AIService');
+        developer.log("Error parsing JSON: $jsonError", name: 'AIService');
       }
+      
+      // STRICT FALLBACK - much lower scores
+      final baseScore = isMeaningless ? 0.18 :
+                       hasContradiction ? 0.12 :
+                       userMessageCount == 1 ? 0.40 :
+                       avgWordsPerMessage < 10 ? 0.35 : 0.48;
       
       return {
         "skillRatings": {
-          "clarity": 0.7,
-          "logic": 0.8,
-          "rebuttalQuality": 0.6,
-          "persuasiveness": 0.75
+          "clarity": isMeaningless ? 0.18 : (hasContradiction ? 0.30 : baseScore.clamp(0.0, 1.0)),
+          "logic": isMeaningless ? 0.15 : (hasContradiction ? 0.10 : (baseScore + (connectorCount > 0 ? 0.03 : -0.05)).clamp(0.0, 1.0)),
+          "rebuttalQuality": isMeaningless ? 0.15 : (userMessageCount == 1 ? 0.38 : baseScore.clamp(0.0, 1.0)),
+          "persuasiveness": isMeaningless ? 0.15 : (hasContradiction ? 0.15 : baseScore.clamp(0.0, 1.0)),
+          "coherence": isMeaningless ? 0.15 : (hasContradiction ? 0.10 : baseScore.clamp(0.0, 1.0)),
+          "articulation": isMeaningless ? 0.18 : (baseScore + 0.02).clamp(0.0, 1.0),
+          "engagement": isMeaningless ? 0.15 : (baseScore - 0.02).clamp(0.0, 1.0),
+          "tone": isMeaningless ? 0.20 : (baseScore + 0.08).clamp(0.0, 1.0),
         },
-        "strengths": [
-          "Good use of evidence",
-          "Clear structure in arguments",
-          "Effective counter-arguments"
-        ],
-        "improvements": [
-          "Could improve emotional appeal",
-          "Some arguments lack specific examples",
-          "Consider addressing opposing viewpoints more directly"
-        ],
-        "overallFeedback": "Overall, you demonstrated strong debating skills with logical arguments and clear structure. Your rebuttals were effective, though they could be more direct. To improve, focus on incorporating more specific examples and emotional appeals to make your arguments more persuasive."
+        "strengths": hasContradiction ? ["Attempted to participate"] : ["Initiated debate", "Maintained appropriate tone"],
+        "improvements": hasContradiction 
+          ? [
+              "CRITICAL: You contradicted yourself - argued both FOR and AGAINST!",
+              "Choose ONE clear position before speaking",
+              "Build ALL arguments to support your chosen side"
+            ]
+          : [
+              "Develop longer arguments (15-20 words minimum)",
+              "Use logical connectors (because, therefore, however)",
+              "Add specific examples and evidence"
+            ],
+        "overallFeedback": hasContradiction
+          ? "CRITICAL FAILURE: You argued both sides of the debate, which completely destroys your credibility. You must choose ONE position (for OR against) and stick to it. This is the worst possible debate error."
+          : isMeaningless 
+            ? "Your response is too brief to evaluate meaningfully. Provide at least 15-20 words with clear reasoning."
+            : "Your debate shows initial engagement but needs significant development. Focus on: longer arguments with evidence, logical structure, and addressing opposing viewpoints. Current performance is below average - there's much room for improvement."
       };
     } catch (e) {
-      print("Error generating feedback: $e");
+      developer.log("Critical error generating feedback: $e", name: 'AIService');
+      
+      // Even on error, return valid fallback data
       return {
-        "error": "Error generating feedback: $e"
+        "skillRatings": {
+          "clarity": 0.35,
+          "logic": 0.35,
+          "rebuttalQuality": 0.35,
+          "persuasiveness": 0.35,
+          "coherence": 0.35,
+          "articulation": 0.35,
+          "engagement": 0.35,
+          "tone": 0.40,
+        },
+        "strengths": ["Participated in the debate"],
+        "improvements": [
+          "System error occurred - unable to provide detailed analysis",
+          "Try again with clearer arguments",
+          "Use logical structure and evidence"
+        ],
+        "overallFeedback": "We encountered a technical issue analyzing your debate. Please try again. Make sure to present clear, well-structured arguments with supporting evidence."
       };
     }
   }

@@ -10,12 +10,15 @@ import 'package:audioplayers/audioplayers.dart';
 /// 
 /// Setup:
 /// 1. Go to https://elevenlabs.io and sign up (FREE, no credit card)
-/// 2. Get your API key from Settings
+/// 2. Get your API key from Settings → API Keys
 /// 3. Paste it below in API_KEY constant
 class ElevenLabsTTS {
-  // TODO: Add your ElevenLabs API key here
+  // 🔑 ADD YOUR ELEVENLABS API KEY HERE:
   // Get it from: https://elevenlabs.io/app/settings/api-keys
-  static const String API_KEY = 'e62d2878cbcb168b6508b8535ef2916ad60a24e47962549f4200482c629f6ad3';
+  static const String API_KEY = 'sk_6d5f472c802bdebbf67323414bdd68e8003198c3a96b8746';
+  
+  // ⚠️ YOUR OLD KEY WAS INVALID/REVOKED
+  // Get a NEW FREE key from: https://elevenlabs.io/sign-up
   
   // Voice IDs (pre-selected professional voices)
   static const String VOICE_ADAM = 'pNInz6obpgDQGcFmaJgB'; // Professional male - authoritative
@@ -37,7 +40,9 @@ class ElevenLabsTTS {
     
     // Check if API key is set
     if (API_KEY == 'YOUR_ELEVENLABS_API_KEY_HERE') {
-      print('[ElevenLabs] ERROR: API key not set! Get one from https://elevenlabs.io');
+      print('[ElevenLabs] ❌ ERROR: API key not set!');
+      print('[ElevenLabs] 🔑 Get FREE key: https://elevenlabs.io/sign-up');
+      print('[ElevenLabs] 📝 Then paste it in: lib/core/services/elevenlabs_tts_service.dart line 18');
       return;
     }
     
@@ -56,29 +61,35 @@ class ElevenLabsTTS {
     
     try {
       _isSpeaking = true;
-      print('[ElevenLabs] Generating speech for: ${cleanText.substring(0, cleanText.length > 50 ? 50 : cleanText.length)}...');
+      print('[ElevenLabs] 🎤 Generating speech for: ${cleanText.substring(0, cleanText.length > 50 ? 50 : cleanText.length)}...');
+      print('[ElevenLabs] 🔑 Using API key: ${API_KEY.substring(0, 10)}...');
+      print('[ElevenLabs] 🎙️ Using voice: $DEFAULT_VOICE');
       
-      // Request audio from ElevenLabs
+      // Request audio from ElevenLabs API (v1)
+      final url = 'https://api.elevenlabs.io/v1/text-to-speech/$DEFAULT_VOICE';
+      print('[ElevenLabs] 📡 Calling: $url');
+      
       final response = await http.post(
-        Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$DEFAULT_VOICE'),
+        Uri.parse(url),
         headers: {
           'xi-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'text': cleanText,  // Use cleaned text without markdown
-          'model_id': 'eleven_monolingual_v1',
+          'text': cleanText,
+          'model_id': 'eleven_multilingual_v2',  // Updated to v2 model
+          'output_format': 'mp3_44100_128',      // Required format parameter
           'voice_settings': {
-            'stability': 0.70,           // More natural variation (0-1)
-            'similarity_boost': 0.80,    // More human-like (0-1)
-            'style': 0.30,               // Slight expressiveness for debate
-            'use_speaker_boost': true,   // Enhance clarity
+            'stability': 0.70,
+            'similarity_boost': 0.80,
           }
         }),
       );
       
+      print('[ElevenLabs] 📥 Response status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
-        print('[ElevenLabs] Audio received, playing...');
+        print('[ElevenLabs] ✅ Audio received, playing...');
         
         // Save audio to temporary file
         final tempDir = await getTemporaryDirectory();
@@ -91,18 +102,27 @@ class ElevenLabsTTS {
         // Wait for completion
         await _audioPlayer.onPlayerComplete.first;
         
-        print('[ElevenLabs] Speech completed');
+        print('[ElevenLabs] ✅ Speech completed');
         
       } else if (response.statusCode == 401) {
-        print('[ElevenLabs] ERROR: Invalid API key. Check your key at https://elevenlabs.io/app/settings/api-keys');
+        print('[ElevenLabs] ❌ ERROR 401: Invalid API key');
+        print('[ElevenLabs] � Response: ${response.body}');
+        print('[ElevenLabs] 💡 Possible fixes:');
+        print('[ElevenLabs]    1. Wait 1-2 minutes for new key to activate');
+        print('[ElevenLabs]    2. Verify key at: https://elevenlabs.io/app/settings/api-keys');
+        print('[ElevenLabs]    3. Make sure you copied the FULL key (starts with sk_)');
+        print('[ElevenLabs]    4. Check if key has proper permissions');
       } else if (response.statusCode == 429) {
-        print('[ElevenLabs] ERROR: Monthly quota exceeded (10k chars). Upgrade at https://elevenlabs.io/pricing');
+        print('[ElevenLabs] ❌ ERROR 429: Monthly quota exceeded (10k chars)');
+        print('[ElevenLabs] 💎 Upgrade: https://elevenlabs.io/pricing');
       } else {
-        print('[ElevenLabs] Error: ${response.statusCode} - ${response.body}');
+        print('[ElevenLabs] ❌ ERROR ${response.statusCode}');
+        print('[ElevenLabs] 📄 Response body: ${response.body}');
+        print('[ElevenLabs] 🔍 Headers sent: xi-api-key=${API_KEY.substring(0, 10)}...');
       }
       
     } catch (e) {
-      print('[ElevenLabs] Error: $e');
+      print('[ElevenLabs] ❌ Error: $e');
     } finally {
       _isSpeaking = false;
     }
