@@ -114,6 +114,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
       setState(() {
         _feedback = feedback;
         _isLoading = false;
+        // Mark as complete immediately after feedback is loaded
+        _isProcessComplete = true;
       });
       
       // Update user skills based on feedback
@@ -128,21 +130,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
         await userProvider.updateSkills(skillRatings);
         await userProvider.addPoints(AppConstants.pointsPerDebate);
         
-        // Move recommendations generation earlier in the process
+        // Generate recommendations in background - don't block navigation
         debugPrint('Generating recommendations based on skills');
-        try {
-          // Generate recommendations synchronously before any potential disposal
-          await feedbackProvider.generateRecommendations(skillRatings);
+        // Use unawaited to run in background
+        feedbackProvider.generateRecommendations(skillRatings).then((_) {
           debugPrint('Recommendations generated successfully');
-          
-          // Mark process as complete only after recommendations are generated
-          _isProcessComplete = true;
-        } catch (recError) {
-          // Just log the error but continue - this isn't critical
-          debugPrint('Error generating recommendations: $recError');
-          // Still mark as complete even if recommendations failed
-          _isProcessComplete = true;
-        }
+        }).catchError((error) {
+          debugPrint('Error generating recommendations: $error');
+        });
       }
     } catch (e, stack) {
       // Handle errors and check if mounted before updating state
@@ -153,6 +148,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
         debugPrint('Setting loading to false after error');
         setState(() {
           _isLoading = false;
+          // Mark complete even on error so user can navigate away
+          _isProcessComplete = true;
         });
         
         // Show error message to user
@@ -239,9 +236,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
           _isNavigatingAway = true;
           return true;
         });
-        
-        // Default return while waiting for the synchronized block
-        return false;
       },
       child: Scaffold(
       appBar: AppBar(
