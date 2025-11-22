@@ -127,8 +127,13 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
         final skillRatings = Map<String, double>.from(feedback['skillRatings']);
         
         // Update skills and add points
+        debugPrint('Updating user skills...');
         await userProvider.updateSkills(skillRatings);
+        debugPrint('Adding points: ${AppConstants.pointsPerDebate}');
         await userProvider.addPoints(AppConstants.pointsPerDebate);
+        debugPrint('Incrementing debates completed...');
+        await userProvider.incrementDebatesCompleted();
+        debugPrint('All user stats updated successfully');
         
         // Generate recommendations in background - don't block navigation
         debugPrint('Generating recommendations based on skills');
@@ -364,9 +369,17 @@ class _FeedbackScreenState extends State<FeedbackScreen> with WidgetsBindingObse
     }
 
     final skillRatings = Map<String, double>.from(_feedback!['skillRatings']);
-    final strengths = List<String>.from(_feedback!['strengths']);
-    final improvements = List<String>.from(_feedback!['improvements']);
-    final overallFeedback = _feedback!['overallFeedback'];
+    
+    // Safely extract lists with error handling
+    final strengths = _feedback!['strengths'] is List 
+        ? List<String>.from(_feedback!['strengths']) 
+        : <String>[];
+    
+    final improvements = _feedback!['improvements'] is List
+        ? List<String>.from(_feedback!['improvements'])
+        : <String>[];
+    
+    final overallFeedback = _feedback!['overallFeedback']?.toString() ?? '';
 
     // Separate skills into categories
     final communicationSkills = {

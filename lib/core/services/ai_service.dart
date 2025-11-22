@@ -110,6 +110,30 @@ Your response:
       // STRICT ANALYSIS for learning
       final userMessages = messages.where((m) => m.isUser).toList();
       final userMessageCount = userMessages.length;
+      
+      // Handle case where user said NOTHING
+      if (userMessageCount == 0) {
+        return {
+          "skillRatings": {
+            "clarity": 0.0,
+            "logic": 0.0,
+            "rebuttalQuality": 0.0,
+            "persuasiveness": 0.0,
+            "coherence": 0.0,
+            "articulation": 0.0,
+            "engagement": 0.0,
+            "tone": 0.0,
+          },
+          "strengths": ["Started the debate session"],
+          "improvements": [
+            "You didn't say anything! You must participate to receive feedback",
+            "Speak up and present your arguments",
+            "Take a clear position on the debate topic"
+          ],
+          "overallFeedback": "You ended the debate without saying anything. To improve your debate skills, you need to actively participate by presenting arguments, providing evidence, and engaging with counterarguments. Start by clearly stating your position on the topic."
+        };
+      }
+      
       final totalWords = userMessages.fold(0, (sum, msg) => sum + msg.content.split(RegExp(r'\s+')).length);
       final avgWordsPerMessage = userMessageCount > 0 ? totalWords / userMessageCount : 0;
       final allUserText = userMessages.map((m) => m.content.toLowerCase()).join(' ');

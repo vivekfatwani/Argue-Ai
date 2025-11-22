@@ -1,7 +1,9 @@
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:skill_chart/skill_chart.dart';
 import '../../core/constants.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/providers/debate_provider.dart';
@@ -99,8 +101,15 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Reload activity when dependencies change (like when returning to this tab)
+    // Reload user data and activity when dependencies change (like when returning to this tab)
+    _reloadUserData();
     _loadRecentActivity();
+  }
+
+  void _reloadUserData() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    // Trigger a refresh of user data
+    await userProvider.refreshUser();
   }
 
   void _loadRecentActivity() {
@@ -1608,16 +1617,21 @@ class _ProfileTabState extends State<ProfileTab> {
                                 child: CircleAvatar(
                                   radius: 40,
                                   backgroundColor: Colors.white.withOpacity(0.9),
-                                  child: Text(
-                                    user.name.isNotEmpty
-                                        ? user.name[0].toUpperCase()
-                                        : 'U',
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
-                                  ),
+                                  backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
+                                      ? FileImage(File(user.photoUrl!))
+                                      : null,
+                                  child: user.photoUrl == null || user.photoUrl!.isEmpty
+                                      ? Text(
+                                          user.name.isNotEmpty
+                                              ? user.name[0].toUpperCase()
+                                              : 'U',
+                                          style: TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: Theme.of(context).colorScheme.primary,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                               ),
                               Positioned(
@@ -1724,7 +1738,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 200, // Increased height to prevent overflow
+                height: 220, // Increased height to accommodate text size changes
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -1740,7 +1754,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     _buildStatCard(
                       context, 
                       'Debates', 
-                      (user.completedResources.length / 2).round().toString(), 
+                      user.debatesCompleted.toString(), 
                       Icons.record_voice_over,
                       Colors.blue.shade400,
                       'Total debates completed across all modes',
@@ -1923,22 +1937,23 @@ class _ProfileTabState extends State<ProfileTab> {
                     ListTile(
                       leading: const Icon(Icons.text_fields),
                       title: const Text('Text Size'),
-                      trailing: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'S', label: Text('S')),
-                          ButtonSegment(value: 'M', label: Text('M')),
-                          ButtonSegment(value: 'L', label: Text('L')),
-                        ],
-                        selected: {'M'},
-                        onSelectionChanged: (newSelection) {
-                          // Handle text size change
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Text size setting coming soon')),
+                      trailing: Consumer<UserProvider>(
+                        builder: (context, userProvider, _) {
+                          return SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'S', label: Text('S')),
+                              ButtonSegment(value: 'M', label: Text('M')),
+                              ButtonSegment(value: 'L', label: Text('L')),
+                            ],
+                            selected: {userProvider.textSize},
+                            onSelectionChanged: (newSelection) {
+                              userProvider.setTextSize(newSelection.first);
+                            },
+                            style: ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                            ),
                           );
                         },
-                        style: ButtonStyle(
-                          visualDensity: VisualDensity.compact,
-                        ),
                       ),
                     ),
                     
@@ -2214,6 +2229,7 @@ class _ProfileTabState extends State<ProfileTab> {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Card header
@@ -2332,7 +2348,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final shareText = """🎯 My ArgueAI Stats 🎯
     
 Debate Score: ${(user.points / 10).round()}
-Debates Completed: ${(user.completedResources.length / 2).round()}
+Debates Completed: ${user.debatesCompleted}
 Resources Completed: ${user.completedResources.length}
 
 My Skills:
@@ -2370,43 +2386,37 @@ Download ArgueAI and improve your debate skills!""";
   
   // Toggle between list and chart views for skills
   void _toggleSkillsView(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.user;
+    
+    if (user == null || user.skills.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No skills data available')),
+      );
+      return;
+    }
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Skill Visualization'),
-        content: Container(
-          width: double.maxFinite,
-          height: 300,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-          ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Your Skills Chart'),
+        content: SizedBox(
+          width: 350,
+          height: 350,
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.pie_chart,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Radar Chart View Coming Soon',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'This feature will show your skills in a visual radar/spider chart format.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
+            child: SkillRadarChart(
+              skills: user.skills,
+              size: 320,
+              fillColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+              strokeColor: Theme.of(context).colorScheme.primary,
+              gridColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+              textColor: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
           ),
         ],
@@ -2469,6 +2479,21 @@ Download ArgueAI and improve your debate skills!""";
     switch (skill.toLowerCase()) {
       case 'clarity':
         return Colors.blue;
+      case 'coherence':
+        return Colors.indigo;
+      case 'articulation':
+        return Colors.cyan;
+      case 'engagement':
+        return Colors.amber;
+      case 'tone':
+        return Colors.pink;
+      case 'logic':
+        return Colors.green;
+      case 'rebuttalquality':
+        return Colors.red;
+      case 'persuasiveness':
+        return Colors.purple;
+      // Legacy skill names (for backwards compatibility)
       case 'reasoning':
         return Colors.green;
       case 'evidence':
@@ -2502,6 +2527,21 @@ Download ArgueAI and improve your debate skills!""";
     switch (skill.toLowerCase()) {
       case 'clarity':
         return Icons.lightbulb_outline;
+      case 'coherence':
+        return Icons.grain;
+      case 'articulation':
+        return Icons.record_voice_over;
+      case 'engagement':
+        return Icons.favorite;
+      case 'tone':
+        return Icons.tune;
+      case 'logic':
+        return Icons.psychology;
+      case 'rebuttalquality':
+        return Icons.gavel;
+      case 'persuasiveness':
+        return Icons.campaign;
+      // Legacy skill names (for backwards compatibility)
       case 'reasoning':
         return Icons.psychology;
       case 'evidence':

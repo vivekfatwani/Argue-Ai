@@ -31,9 +31,13 @@ class AppConstants {
     'Should there be limits on free speech?',
   ];
   
-  // Skill Categories
+  // Skill Categories - Updated to match new metrics system
   static const List<String> skillCategories = [
     'Clarity',
+    'Coherence',
+    'Articulation',
+    'Engagement',
+    'Tone',
     'Logic',
     'Rebuttal Quality',
     'Persuasiveness',

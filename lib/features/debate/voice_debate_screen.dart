@@ -212,7 +212,13 @@ class _VoiceDebateScreenState extends State<VoiceDebateScreen> {
         actions: [
           TextButton(
             onPressed: _endDebate,
-            child: const Text('End Debate'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text(
+              'End Debate',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

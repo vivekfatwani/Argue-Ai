@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -8,14 +7,28 @@ import '../models/user_model.dart';
 import '../models/debate_model.dart';
 import '../models/feedback_model.dart';
 import '../constants.dart';
-import '../utils.dart';
 
+/// Storage Service - LOCAL STORAGE ONLY (No Firebase Storage billing)
+/// 
+/// What's stored where:
+/// - USER DATA: Firestore (user profile, points, skills, debates count)
+/// - DEBATE HISTORY: Local SharedPreferences only (no Firestore sync)
+/// - FEEDBACK: Local SharedPreferences only (no Firestore sync)
+/// - RECOMMENDATIONS: Local SharedPreferences only (no Firestore sync)
+/// - FILES/MEDIA: NONE - no file storage used anywhere
+/// 
+/// Firebase usage:
+/// - Firebase Auth: User authentication (FREE tier)
+/// - Firestore: User profile data only (minimal, FREE tier)
+/// - Firebase Storage: NOT USED - removed to avoid billing
+/// 
+/// All debate transcripts, feedback, and user-generated content stays LOCAL.
 class StorageService {
   late SharedPreferences _prefs;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   
-  // Flag to disable Firestore/Storage (when billing is not enabled)
+  // Flag to disable Firestore for debates/feedback (keeps billing minimal)
   final bool _useFirestore = false;
   
   // Initialize the storage service
@@ -55,10 +68,12 @@ class StorageService {
   
   // Debate History Methods
   Future<List<Debate>> getDebateHistory() async {
+    print('=== STORAGE: Getting debate history...');
     List<Debate> debates = [];
     
     // Try to get debates from Firestore first if user is logged in AND Firestore is enabled
     if (_useFirestore && isAuthenticated) {
+      print('=== STORAGE: Firestore is enabled, trying Firestore...');
       try {
         final userId = currentUserId!;
         final snapshot = await _firestore
@@ -103,29 +118,42 @@ class StorageService {
     
     // If no debates found in Firestore or Firestore disabled, try local storage
     if (debates.isEmpty) {
+      print('=== STORAGE: Firestore disabled or empty, checking local storage...');
       final historyJson = _prefs.getString(AppConstants.keyDebateHistory);
+      print('=== STORAGE: Local storage data exists: ${historyJson != null}');
       if (historyJson != null) {
+        print('=== STORAGE: Parsing ${historyJson.length} characters of JSON');
         try {
           final List<dynamic> historyList = jsonDecode(historyJson);
+          print('=== STORAGE: Decoded ${historyList.length} debates from JSON');
           debates = historyList.map((item) => Debate.fromJson(item)).toList();
+          print('=== STORAGE: Successfully parsed ${debates.length} debate objects');
         } catch (e) {
           print('Error parsing debate history from local storage: $e');
         }
+      } else {
+        print('=== STORAGE: No local storage data found');
       }
     }
     
+    print('=== STORAGE: Returning ${debates.length} total debates');
     return debates;
   }
   
   Future<bool> saveDebate(Debate debate) async {
+    print('=== STORAGE: Saving debate ${debate.id}');
     bool success = true;
     final history = await getDebateHistory();
+    
+    print('=== STORAGE: Current history has ${history.length} debates');
     
     // Check if debate already exists in local history
     final index = history.indexWhere((d) => d.id == debate.id);
     if (index >= 0) {
+      print('=== STORAGE: Updating existing debate at index $index');
       history[index] = debate;
     } else {
+      print('=== STORAGE: Adding new debate to history');
       history.add(debate);
     }
     
@@ -134,6 +162,9 @@ class StorageService {
       AppConstants.keyDebateHistory,
       jsonEncode(history.map((d) => d.toJson()).toList()),
     );
+    
+    print('=== STORAGE: Save to SharedPreferences: ${success ? "SUCCESS" : "FAILED"}');
+    print('=== STORAGE: Total debates now: ${history.length}');
     
     // Also save to Firestore if user is authenticated AND Firestore is enabled
     if (_useFirestore && isAuthenticated) {
@@ -573,4 +604,14 @@ class StorageService {
     
     return success;
   }
+
+  // Text Size Settings
+  Future<String> getTextSize() async {
+    return _prefs.getString('text_size') ?? 'M';
+  }
+
+  Future<void> saveTextSize(String size) async {
+    await _prefs.setString('text_size', size);
+  }
 }
+

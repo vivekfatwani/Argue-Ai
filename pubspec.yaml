@@ -43,13 +43,18 @@ dependencies:
   uuid: ^4.0.0
   flutter_svg: ^2.0.9
   
-  # Firebase packages
+  # Firebase packages (using Firestore ONLY for user auth/data - no Storage billing)
   firebase_core: ^2.15.1
   firebase_auth: ^4.7.3
   cloud_firestore: ^4.8.5
-  firebase_storage: ^11.2.6
+  # firebase_storage: REMOVED - using local storage only to avoid billing
   speech_to_text: ^7.3.0
   flutter_tts: ^4.2.0
+  image_picker: ^1.0.4
+  
+  # Local package for skill chart
+  skill_chart:
+    path: skill_chart/
 
 dev_dependencies:
   flutter_test:
@@ -84,7 +89,6 @@ flutter:
   # Assets for the application
   assets:
     - assets/images/
-    - assets/animations/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

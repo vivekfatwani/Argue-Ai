@@ -66,12 +66,20 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
     
     return MaterialApp.router(
       title: 'ArgueAI',
       theme: themeProvider.currentTheme,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final textScale = userProvider.textSizeMultiplier;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaleFactor: textScale),
+          child: child!,
+        );
+      },
     );
   }
 }

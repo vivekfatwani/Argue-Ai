@@ -19,6 +19,15 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: AppConstants.skillCategories.length, vsync: this);
+    
+    // Debug: Test skill name conversion
+    for (var skill in AppConstants.skillCategories) {
+      final words = skill.toLowerCase().split(' ');
+      final skillKey = words.first + words.skip(1).map((w) => 
+        w[0].toUpperCase() + w.substring(1)
+      ).join('');
+      print('Skill: "$skill" -> Key: "$skillKey" -> Icon: ${_getSkillIcon(skillKey)}');
+    }
   }
   
   @override
@@ -35,7 +44,60 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          tabs: AppConstants.skillCategories.map((skill) => Tab(text: skill)).toList(),
+          tabs: AppConstants.skillCategories.map((skill) {
+            IconData iconData;
+            
+            // Direct mapping based on skill name
+            print('Processing skill: "$skill"');
+            switch (skill) {
+              case 'Clarity':
+                iconData = Icons.lightbulb_outline;
+                print('  -> Matched Clarity, icon: $iconData');
+                break;
+              case 'Coherence':
+                iconData = Icons.grain;
+                print('  -> Matched Coherence, icon: $iconData');
+                break;
+              case 'Articulation':
+                iconData = Icons.record_voice_over;
+                print('  -> Matched Articulation, icon: $iconData');
+                break;
+              case 'Engagement':
+                iconData = Icons.favorite;
+                print('  -> Matched Engagement, icon: $iconData');
+                break;
+              case 'Tone':
+                iconData = Icons.tune;
+                print('  -> Matched Tone, icon: $iconData');
+                break;
+              case 'Logic':
+                iconData = Icons.psychology;
+                print('  -> Matched Logic, icon: $iconData');
+                break;
+              case 'Rebuttal Quality':
+                iconData = Icons.gavel;
+                print('  -> Matched Rebuttal Quality, icon: $iconData');
+                break;
+              case 'Persuasiveness':
+                iconData = Icons.campaign;
+                print('  -> Matched Persuasiveness, icon: $iconData');
+                break;
+              default:
+                iconData = Icons.star;
+                print('  -> NO MATCH, using default star icon');
+            }
+            
+            return Tab(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(iconData, size: 24),
+                  const SizedBox(height: 4),
+                  Text(skill, style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ),
       body: Consumer2<FeedbackProvider, UserProvider>(
@@ -51,7 +113,13 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
           return TabBarView(
             controller: _tabController,
             children: AppConstants.skillCategories.map((skill) {
-              final skillKey = skill.toLowerCase().replaceAll(' ', '');
+              // Convert skill name to camelCase to match the AI service format
+              // "Rebuttal Quality" -> "rebuttalQuality", "Clarity" -> "clarity"
+              final words = skill.toLowerCase().split(' ');
+              final skillKey = words.first + words.skip(1).map((w) => 
+                w[0].toUpperCase() + w.substring(1)
+              ).join('');
+              
               final resources = feedbackProvider.getResourcesBySkill(skillKey);
               
               return _buildResourceList(
@@ -135,14 +203,25 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        ...resource.targetSkills.map((skill) => Chip(
-                          label: Text(
-                            skill.substring(0, 1).toUpperCase() + skill.substring(1),
-                            style: const TextStyle(fontSize: 12),
+                        ...resource.targetSkills.map((skill) => Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Chip(
+                            avatar: CircleAvatar(
+                              backgroundColor: Colors.transparent,
+                              child: Icon(
+                                _getSkillIcon(skill),
+                                size: 16,
+                                color: _getSkillColor(skill),
+                              ),
+                            ),
+                            label: Text(
+                              _formatSkillName(skill),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            backgroundColor: _getSkillColor(skill).withOpacity(0.1),
+                            padding: const EdgeInsets.all(4),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-                          padding: const EdgeInsets.all(4),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         )).toList(),
                         const Spacer(),
                         if (!isCompleted)
@@ -202,4 +281,60 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
       child: Icon(iconData, color: color),
     );
   }
+
+  IconData _getSkillIcon(String skill) {
+    switch (skill.toLowerCase()) {
+      case 'clarity':
+        return Icons.lightbulb_outline;
+      case 'coherence':
+        return Icons.grain;
+      case 'articulation':
+        return Icons.record_voice_over;
+      case 'engagement':
+        return Icons.favorite;
+      case 'tone':
+        return Icons.tune;
+      case 'logic':
+        return Icons.psychology;
+      case 'rebuttalquality':
+        return Icons.gavel;
+      case 'persuasiveness':
+        return Icons.campaign;
+      default:
+        return Icons.star;
+    }
+  }
+
+  Color _getSkillColor(String skill) {
+    switch (skill.toLowerCase()) {
+      case 'clarity':
+        return Colors.blue;
+      case 'coherence':
+        return Colors.indigo;
+      case 'articulation':
+        return Colors.cyan;
+      case 'engagement':
+        return Colors.amber;
+      case 'tone':
+        return Colors.pink;
+      case 'logic':
+        return Colors.green;
+      case 'rebuttalquality':
+        return Colors.red;
+      case 'persuasiveness':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatSkillName(String skill) {
+    // Convert camelCase to Title Case
+    String result = skill.replaceAllMapped(
+      RegExp(r'([A-Z])'),
+      (match) => ' ${match.group(0)}',
+    ).trim();
+    return result.substring(0, 1).toUpperCase() + result.substring(1);
+  }
 }
+

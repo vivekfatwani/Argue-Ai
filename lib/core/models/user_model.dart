@@ -4,6 +4,7 @@ class User {
   final String email;
   final String? photoUrl;
   final int points;
+  final int debatesCompleted;
   final Map<String, double> skills;
   final List<String> completedResources;
   final DateTime createdAt;
@@ -15,6 +16,7 @@ class User {
     required this.email,
     this.photoUrl,
     this.points = 0,
+    this.debatesCompleted = 0,
     this.skills = const {},
     this.completedResources = const [],
     required this.createdAt,
@@ -27,6 +29,7 @@ class User {
     String? email,
     String? photoUrl,
     int? points,
+    int? debatesCompleted,
     Map<String, double>? skills,
     List<String>? completedResources,
     DateTime? createdAt,
@@ -38,6 +41,7 @@ class User {
       email: email ?? this.email,
       photoUrl: photoUrl ?? this.photoUrl,
       points: points ?? this.points,
+      debatesCompleted: debatesCompleted ?? this.debatesCompleted,
       skills: skills ?? this.skills,
       completedResources: completedResources ?? this.completedResources,
       createdAt: createdAt ?? this.createdAt,
@@ -52,6 +56,7 @@ class User {
       'email': email,
       'photoUrl': photoUrl,
       'points': points,
+      'debatesCompleted': debatesCompleted,
       'skills': skills,
       'completedResources': completedResources,
       'createdAt': createdAt.toIso8601String(),
@@ -66,6 +71,7 @@ class User {
       email: json['email'],
       photoUrl: json['photoUrl'],
       points: json['points'] ?? 0,
+      debatesCompleted: json['debatesCompleted'] ?? 0,
       skills: Map<String, double>.from(json['skills'] ?? {}),
       completedResources: List<String>.from(json['completedResources'] ?? []),
       createdAt: DateTime.parse(json['createdAt']),

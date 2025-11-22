@@ -112,7 +112,13 @@ class DebateProvider with ChangeNotifier {
 
     _currentDebate = _currentDebate!.copyWith(endTime: DateTime.now());
 
+    print('=== ENDING DEBATE: ${_currentDebate!.id}');
+    print('=== DEBATE TOPIC: ${_currentDebate!.topic}');
+    print('=== DEBATE MESSAGES: ${_currentDebate!.messages.length}');
+    
     await _storageService.saveDebate(_currentDebate!);
+    
+    print('=== DEBATE SAVED SUCCESSFULLY');
 
     _isLoading = false;
     notifyListeners();
@@ -147,7 +153,12 @@ class DebateProvider with ChangeNotifier {
 
   // Load debate history
   Future<List<Debate>> getDebateHistory() async {
-    return await _storageService.getDebateHistory();
+    final history = await _storageService.getDebateHistory();
+    print('=== GET DEBATE HISTORY: Found ${history.length} debates');
+    for (var debate in history) {
+      print('  - ${debate.topic} (${debate.id})');
+    }
+    return history;
   }
 
   // Load a specific debate from history

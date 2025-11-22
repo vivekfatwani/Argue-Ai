@@ -8,16 +8,43 @@ class UserProvider with ChangeNotifier {
   User? _user;
   final StorageService _storageService;
   bool _isLoading = true;
+  String _textSize = 'M'; // S, M, L
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   UserProvider(this._storageService) {
     _initializeUser();
+    _loadTextSize();
   }
 
   User? get user => _user;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _user != null && _user!.id.isNotEmpty;
+  String get textSize => _textSize;
+  
+  double get textSizeMultiplier {
+    switch (_textSize) {
+      case 'S':
+        return 0.85;
+      case 'L':
+        return 1.15;
+      default:
+        return 1.0;
+    }
+  }
+
+  Future<void> _loadTextSize() async {
+    _textSize = await _storageService.getTextSize();
+    // Don't call notifyListeners here to avoid rebuild loop
+  }
+
+  Future<void> setTextSize(String size) async {
+    if (_textSize != size) {
+      _textSize = size;
+      await _storageService.saveTextSize(size);
+      notifyListeners();
+    }
+  }
 
   Future<void> _initializeUser() async {
     _isLoading = true;
@@ -78,6 +105,7 @@ class UserProvider with ChangeNotifier {
             createdAt: createdAt,
             lastActive: lastActive,
             points: userData['points'] is int ? userData['points'] : 0,
+            debatesCompleted: userData['debatesCompleted'] is int ? userData['debatesCompleted'] : 0,
             skills: userData['skills'] is Map 
                 ? Map<String, double>.from(userData['skills'].map((k, v) => 
                     MapEntry(k, v is double ? v : v is int ? v.toDouble() : 0.0))) 
@@ -123,9 +151,12 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> updateUser(User user) async {
+    print('=== UPDATE USER: Updating user ${user.id}');
+    print('=== UPDATE USER: Points=${user.points}, Debates=${user.debatesCompleted}, Skills=${user.skills.length}');
+    
     _user = user;
     
-    // Update in Firestore if logged in
+    // Update in Firestore if logged in (with timeout to avoid blocking)
     if (_auth.currentUser != null) {
       try {
         await _firestore.collection('users').doc(user.id).update({
@@ -133,18 +164,25 @@ class UserProvider with ChangeNotifier {
           'email': user.email,
           'lastActive': Timestamp.fromDate(DateTime.now()),
           'points': user.points,
+          'debatesCompleted': user.debatesCompleted,
           'skills': user.skills,
           'completedResources': user.completedResources,
-        });
+        }).timeout(const Duration(seconds: 2));
+        print('=== UPDATE USER: Firestore update successful');
       } catch (e) {
-        print('Error updating user in Firestore: $e');
+        print('=== UPDATE USER: Firestore error (expected if DB not created): $e');
         // Continue with local storage even if Firestore fails
       }
+    } else {
+      print('=== UPDATE USER: No Firebase user, skipping Firestore update');
     }
     
     // Also update in local storage
-    await _storageService.saveUser(user);
+    final saved = await _storageService.saveUser(user);
+    print('=== UPDATE USER: Local storage save: ${saved ? "SUCCESS" : "FAILED"}');
+    
     notifyListeners();
+    print('=== UPDATE USER: notifyListeners() called - update complete');
   }
 
   Future<String?> login(String email, String password) async {
@@ -193,6 +231,7 @@ class UserProvider with ChangeNotifier {
               'createdAt': Timestamp.fromDate(_user!.createdAt),
               'lastActive': Timestamp.fromDate(_user!.lastActive),
               'points': _user!.points,
+              'debatesCompleted': _user!.debatesCompleted,
               'skills': _user!.skills,
               'completedResources': _user!.completedResources,
               'photoUrl': _user!.photoUrl,
@@ -283,6 +322,7 @@ class UserProvider with ChangeNotifier {
                 'createdAt': Timestamp.fromDate(_user!.createdAt),
                 'lastActive': Timestamp.fromDate(_user!.lastActive),
                 'points': _user!.points,
+                'debatesCompleted': _user!.debatesCompleted,
                 'skills': _user!.skills,
                 'completedResources': _user!.completedResources,
                 'photoUrl': _user!.photoUrl,
@@ -460,16 +500,55 @@ class UserProvider with ChangeNotifier {
 
   Future<void> updateSkills(Map<String, double> skills) async {
     if (_user != null) {
+      print('=== UPDATE SKILLS: Updating with ${skills.length} skills');
+      skills.forEach((key, value) {
+        print('  - $key: ${(value * 100).toStringAsFixed(1)}%');
+      });
+      
       final updatedUser = _user!.copyWith(skills: skills);
       await updateUser(updatedUser);
+      
+      print('=== UPDATE SKILLS: User now has ${_user!.skills.length} skills');
+      print('=== UPDATE SKILLS: Points=${_user!.points}, Debates=${_user!.debatesCompleted}');
+    } else {
+      print('=== UPDATE SKILLS: ERROR - User is null!');
     }
   }
 
   Future<void> addPoints(int points) async {
     if (_user != null) {
+      print('=== ADD POINTS: Adding $points points (current: ${_user!.points})');
       final updatedPoints = _user!.points + points;
       final updatedUser = _user!.copyWith(points: updatedPoints);
       await updateUser(updatedUser);
+      print('=== ADD POINTS: New points total: ${_user!.points}');
+    } else {
+      print('=== ADD POINTS: ERROR - User is null!');
+    }
+  }
+
+  Future<void> incrementDebatesCompleted() async {
+    if (_user != null) {
+      print('=== INCREMENT DEBATES: Current count: ${_user!.debatesCompleted}');
+      final updatedCount = _user!.debatesCompleted + 1;
+      print('=== INCREMENT DEBATES: New count: $updatedCount');
+      final updatedUser = _user!.copyWith(debatesCompleted: updatedCount);
+      await updateUser(updatedUser);
+      print('=== INCREMENT DEBATES: Update complete, current user count: ${_user!.debatesCompleted}');
+    } else {
+      print('=== INCREMENT DEBATES: ERROR - User is null!');
+    }
+  }
+
+  Future<void> refreshUser() async {
+    if (_user != null) {
+      print('=== REFRESH USER: Reloading from storage...');
+      final user = await _storageService.getUser();
+      if (user != null) {
+        _user = user;
+        print('=== REFRESH USER: Points=${user.points}, Debates=${user.debatesCompleted}');
+        notifyListeners();
+      }
     }
   }
 
@@ -483,4 +562,33 @@ class UserProvider with ChangeNotifier {
       }
     }
   }
+
+  Future<void> updateProfilePhoto(String photoPath) async {
+    if (_user != null) {
+      try {
+        // Since we're not using Firebase Storage, we'll store the local path
+        // In a production app, you'd upload to Firebase Storage and get a URL
+        final updatedUser = _user!.copyWith(photoUrl: photoPath);
+        await updateUser(updatedUser);
+        print('Profile photo updated: $photoPath');
+      } catch (e) {
+        print('Error updating profile photo: $e');
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> removeProfilePhoto() async {
+    if (_user != null) {
+      try {
+        final updatedUser = _user!.copyWith(photoUrl: null);
+        await updateUser(updatedUser);
+        print('Profile photo removed');
+      } catch (e) {
+        print('Error removing profile photo: $e');
+        rethrow;
+      }
+    }
+  }
 }
+
